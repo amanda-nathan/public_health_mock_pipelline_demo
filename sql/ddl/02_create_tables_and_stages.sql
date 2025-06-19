@@ -1,12 +1,12 @@
+ 
 USE DATABASE PUBLIC_HEALTH_MODERNIZATION_DEMO;
-USE SCHEMA LANDING_RAW;
+USE ROLE DATA_ENGINEER_ROLE;
 USE WAREHOUSE DEV_WH;
 
+ 
+USE SCHEMA LANDING_RAW;
 
--- The stored procedures will insert data directly via SQL INSERT statements
-
--- Landing/Raw layer tables
-CREATE OR REPLACE TABLE raw_cdc_places_data (
+CREATE TABLE IF NOT EXISTS raw_cdc_places_data (
   state_abbr VARCHAR(2),
   county_name VARCHAR(100),
   measure_id VARCHAR(50),
@@ -30,7 +30,7 @@ CREATE OR REPLACE TABLE raw_cdc_places_data (
   load_timestamp TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
 );
 
-CREATE OR REPLACE TABLE raw_environmental_health_data (
+CREATE TABLE IF NOT EXISTS raw_environmental_health_data (
   location_id VARCHAR(50),
   county VARCHAR(100),
   air_quality_index INTEGER,
@@ -50,7 +50,7 @@ CREATE OR REPLACE TABLE raw_environmental_health_data (
 -- Curated layer tables
 USE SCHEMA CURATED;
 
-CREATE OR REPLACE TABLE curated_health_indicators (
+CREATE TABLE IF NOT EXISTS curated_health_indicators (
   location_key VARCHAR(50),
   state_abbr VARCHAR(2),
   county_name VARCHAR(100),
@@ -66,7 +66,7 @@ CREATE OR REPLACE TABLE curated_health_indicators (
   load_timestamp TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
 );
 
-CREATE OR REPLACE TABLE curated_environmental_data (
+CREATE TABLE IF NOT EXISTS curated_environmental_data (
   location_key VARCHAR(50),
   county VARCHAR(100),
   air_quality_index INTEGER,
@@ -87,7 +87,7 @@ CREATE OR REPLACE TABLE curated_environmental_data (
 -- Data Mart layer tables
 USE SCHEMA DATA_MART;
 
-CREATE OR REPLACE TABLE public_health_dashboard (
+CREATE TABLE IF NOT EXISTS public_health_dashboard (
   county_name VARCHAR(100),
   state_abbr VARCHAR(2),
   total_population INTEGER,
@@ -102,7 +102,7 @@ CREATE OR REPLACE TABLE public_health_dashboard (
   last_updated TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
 );
 
-CREATE OR REPLACE TABLE environmental_risk_summary (
+CREATE TABLE IF NOT EXISTS environmental_risk_summary (
   county_name VARCHAR(100),
   risk_level VARCHAR(20),
   facility_count INTEGER,
@@ -112,4 +112,32 @@ CREATE OR REPLACE TABLE environmental_risk_summary (
   compliance_rate FLOAT,
   data_year INTEGER,
   last_updated TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
+);
+
+-- Logging tables  
+USE SCHEMA LOGGING;
+
+CREATE TABLE IF NOT EXISTS pipeline_execution_log (
+  log_id INTEGER AUTOINCREMENT,
+  procedure_name VARCHAR(100),
+  execution_start TIMESTAMP_NTZ,
+  execution_end TIMESTAMP_NTZ,
+  execution_status VARCHAR(20),
+  rows_processed INTEGER,
+  error_message VARCHAR(5000),
+  user_name VARCHAR(100),
+  warehouse_name VARCHAR(100),
+  PRIMARY KEY (log_id)
+);
+
+CREATE TABLE IF NOT EXISTS data_quality_log (
+  log_id INTEGER AUTOINCREMENT,
+  table_name VARCHAR(100),
+  quality_check_name VARCHAR(100),
+  check_result VARCHAR(20),
+  check_value FLOAT,
+  threshold_value FLOAT,
+  check_timestamp TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
+  details VARCHAR(1000),
+  PRIMARY KEY (log_id)
 );
