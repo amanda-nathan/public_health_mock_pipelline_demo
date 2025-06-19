@@ -82,17 +82,18 @@ def main():
     
     print(f"🚀 Deploying stored procedures to {environment} environment")
     
-    conn = connect_to_snowflake()
-    cursor = conn.cursor()
-    
-    # Get procedure files
-    proc_files = [
-        'sql/procs/sp_ingest_raw_data.sql',
-        'sql/procs/sp_process_curated_data.sql',
-        'sql/procs/sp_build_datamart.sql'
-    ]
+   
     
     try:
+         conn = connect_to_snowflake()
+        cursor = conn.cursor()
+    
+        # Get procedure files
+        proc_files = [
+            'sql/procs/sp_ingest_raw_data.sql',
+         'sql/procs/sp_process_curated_data.sql',
+            'sql/procs/sp_build_datamart.sql'
+        ]
         executed_count = 0
         for proc_file in proc_files:
             if Path(proc_file).exists():
@@ -106,9 +107,11 @@ def main():
     except Exception as e:
         print(f"❌ Stored procedures deployment failed: {e}")
         sys.exit(1)
-    finally:
-        cursor.close()
-        conn.close()
+  finally:
+        if 'cursor' in locals():   
+            cursor.close()
+        if 'conn' in locals():     
+            conn.close()
 
 if __name__ == "__main__":
     main()
