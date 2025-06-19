@@ -15,13 +15,13 @@ DECLARE
   result_msg STRING := '';
 BEGIN
   
- 
+  -- Log procedure start
   INSERT INTO logging.pipeline_execution_log 
     (procedure_name, execution_start, execution_status, user_name, warehouse_name)
   VALUES 
     ('sp_process_curated_data', :proc_start, 'RUNNING', CURRENT_USER(), CURRENT_WAREHOUSE());
   
-
+  -- Process health indicators data
   MERGE INTO curated_health_indicators AS target
   USING (
     SELECT 
@@ -58,9 +58,10 @@ BEGIN
     source.longitude, source.data_year, source.data_source, source.data_quality_flag
   );
   
-  GET DIAGNOSTICS health_row_count = ROW_COUNT;
+  -- Capture rows affected by the health indicators merge
+  health_row_count := SQLROWCOUNT;
   
- 
+  -- Process environmental data
   MERGE INTO curated_environmental_data AS target
   USING (
     SELECT 
@@ -106,31 +107,36 @@ BEGIN
     source.last_inspection_date, source.compliance_status, source.data_year, source.data_quality_flag
   );
   
-  GET DIAGNOSTICS env_row_count = ROW_COUNT;
+  -- Capture rows affected by the environmental data merge
+  env_row_count := SQLROWCOUNT;
   
-  result_msg := 'Successfully processed ' || health_row_count || ' health records and ' || env_row_count || ' environmental records';
+  -- Create success message
+  result_msg := 'Successfully processed ' || health_row_count || ' health indicator records and ' || env_row_count || ' environmental health records into curated layer';
   
-  -- Update execution log
+  -- Update execution log with success
   UPDATE logging.pipeline_execution_log 
   SET 
     execution_end = CURRENT_TIMESTAMP(),
     execution_status = 'SUCCESS',
-    rows_processed = health_row_count + env_row_count
+    rows_processed = health_row_count + env_row_count,
+    details = result_msg
   WHERE procedure_name = 'sp_process_curated_data' 
     AND execution_start = :proc_start;
   
-  -- Data quality checks
+  -- Log data quality metrics
   INSERT INTO logging.data_quality_log 
     (table_name, quality_check_name, check_result, check_value, threshold_value, details)
   VALUES 
-    ('curated_health_indicators', 'processed_count', 'PASS', health_row_count, 0, 'Records processed successfully'),
-    ('curated_environmental_data', 'processed_count', 'PASS', env_row_count, 0, 'Records processed successfully');
+    ('curated_health_indicators', 'merge_operation_count', 'PASS', health_row_count, 0, 'Health indicator records processed successfully'),
+    ('curated_environmental_data', 'merge_operation_count', 'PASS', env_row_count, 0, 'Environmental health records processed successfully');
   
   RETURN result_msg;
   
 EXCEPTION
   WHEN OTHER THEN
     error_msg := SQLERRM;
+    
+    -- Update execution log with failure
     UPDATE logging.pipeline_execution_log 
     SET 
       execution_end = CURRENT_TIMESTAMP(),
@@ -138,6 +144,13 @@ EXCEPTION
       error_message = error_msg
     WHERE procedure_name = 'sp_process_curated_data' 
       AND execution_start = :proc_start;
-    RETURN 'ERROR: ' || error_msg;
+      
+    -- Log the error for monitoring
+    INSERT INTO logging.data_quality_log 
+      (table_name, quality_check_name, check_result, check_value, details)
+    VALUES 
+      ('sp_process_curated_data', 'procedure_execution', 'FAIL', 0, 'Procedure failed: ' || error_msg);
+    
+    RETURN 'ERROR: Curated data processing failed - ' || error_msg;
 END;
 $$;

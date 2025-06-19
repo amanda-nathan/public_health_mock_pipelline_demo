@@ -14,20 +14,14 @@ DECLARE
   result_msg STRING := '';
 BEGIN
   
-  
   INSERT INTO logging.pipeline_execution_log 
     (procedure_name, execution_start, execution_status, user_name, warehouse_name)
   VALUES 
     ('sp_ingest_raw_data', :proc_start, 'RUNNING', CURRENT_USER(), CURRENT_WAREHOUSE());
   
-  
   IF (:source_type = 'CDC_PLACES') THEN
-    
- 
     TRUNCATE TABLE raw_cdc_places_data;
     
-    -- In a real scenario, this would use COPY INTO from stage
-    -- For demo purposes, I'll insert sample data
     INSERT INTO raw_cdc_places_data (
       state_abbr, county_name, measure_id, data_value, population, 
       latitude, longitude, category, measure, unitofmeasure, 
@@ -50,12 +44,10 @@ BEGIN
      'Age-adjusted rate', '(42.2553, -71.8973)', '25027', 'Worcester County', 
      'USCS', 'CANCER', 'CANCER', 'AgeAdjRate', 'Cancer incidence', 2021);
     
-    GET DIAGNOSTICS row_count = ROW_COUNT;
+    row_count := SQLROWCOUNT;  -- ✅ Fixed: Snowflake syntax
     result_msg := 'Successfully ingested ' || row_count || ' CDC Places records';
     
   ELSEIF (:source_type = 'ENVIRONMENTAL') THEN
-    
- 
     TRUNCATE TABLE raw_environmental_health_data;
     
     INSERT INTO raw_environmental_health_data (
@@ -74,7 +66,7 @@ BEGIN
      'Worcester Industrial Monitor', '789 Industrial Rd, Worcester, MA 01608', 
      '2024-01-20', 'Under Review', 2024);
     
-    GET DIAGNOSTICS row_count = ROW_COUNT;
+    row_count := SQLROWCOUNT;  -- ✅ Fixed: Snowflake syntax
     result_msg := 'Successfully ingested ' || row_count || ' Environmental records';
     
   ELSE
@@ -82,7 +74,6 @@ BEGIN
     result_msg := error_msg;
   END IF;
   
-   
   UPDATE logging.pipeline_execution_log 
   SET 
     execution_end = CURRENT_TIMESTAMP(),
@@ -91,7 +82,6 @@ BEGIN
     error_message = error_msg
   WHERE procedure_name = 'sp_ingest_raw_data' 
     AND execution_start = :proc_start;
-  
   
   IF (:source_type = 'CDC_PLACES' AND row_count > 0) THEN
     INSERT INTO logging.data_quality_log 

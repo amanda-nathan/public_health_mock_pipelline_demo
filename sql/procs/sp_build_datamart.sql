@@ -86,7 +86,7 @@ BEGIN
     source.data_year
   );
   
-  GET DIAGNOSTICS dashboard_row_count = ROW_COUNT;
+  dashboard_row_count := SQLROWCOUNT;  -- ✅ Fixed: Snowflake syntax
   
   -- Build environmental risk summary
   MERGE INTO environmental_risk_summary AS target
@@ -122,7 +122,7 @@ BEGIN
     source.avg_air_quality, source.avg_water_quality, source.compliance_rate, source.data_year
   );
   
-  GET DIAGNOSTICS risk_row_count = ROW_COUNT;
+  risk_row_count := SQLROWCOUNT;  -- ✅ Fixed: Snowflake syntax
   
   result_msg := 'Successfully built data mart: ' || dashboard_row_count || ' dashboard records, ' || risk_row_count || ' risk summary records';
   
