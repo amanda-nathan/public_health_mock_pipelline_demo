@@ -85,7 +85,7 @@ def main():
    
     
     try:
-         conn = connect_to_snowflake()
+        conn = connect_to_snowflake()
         cursor = conn.cursor()
     
         # Get procedure files
