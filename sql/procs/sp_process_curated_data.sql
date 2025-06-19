@@ -15,6 +15,10 @@ DECLARE
   result_msg STRING := '';
 BEGIN
   
+  -- ✅ Fixed: Ensure proper schema context within procedure
+  USE DATABASE PUBLIC_HEALTH_MODERNIZATION_DEMO;
+  USE SCHEMA CURATED;
+  
   -- Log procedure start
   INSERT INTO logging.pipeline_execution_log 
     (procedure_name, execution_start, execution_status, user_name, warehouse_name)
@@ -58,7 +62,6 @@ BEGIN
     source.longitude, source.data_year, source.data_source, source.data_quality_flag
   );
   
-  -- Capture rows affected by the health indicators merge
   health_row_count := SQLROWCOUNT;
   
   -- Process environmental data
@@ -107,13 +110,10 @@ BEGIN
     source.last_inspection_date, source.compliance_status, source.data_year, source.data_quality_flag
   );
   
-  -- Capture rows affected by the environmental data merge
   env_row_count := SQLROWCOUNT;
   
-  -- Create success message
   result_msg := 'Successfully processed ' || :health_row_count || ' health indicator records and ' || :env_row_count || ' environmental health records into curated layer';
   
-  -- ✅ Fixed: Added : prefix for variable references
   -- Update execution log with success
   UPDATE logging.pipeline_execution_log 
   SET 
@@ -124,7 +124,6 @@ BEGIN
   WHERE procedure_name = 'sp_process_curated_data' 
     AND execution_start = :proc_start;
   
-  -- ✅ Fixed: Added : prefix for variable references
   -- Log data quality metrics
   INSERT INTO logging.data_quality_log 
     (table_name, quality_check_name, check_result, check_value, threshold_value, details)

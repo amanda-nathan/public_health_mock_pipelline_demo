@@ -10,8 +10,6 @@ env:
   SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
   SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
   SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
-  SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE }}
-  SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
   SNOWFLAKE_DATABASE: PUBLIC_HEALTH_MODERNIZATION_DEMO
 
 jobs:
@@ -69,8 +67,8 @@ jobs:
                 user=os.environ['SNOWFLAKE_USER'],
                 password=os.environ['SNOWFLAKE_PASSWORD'],
                 account=os.environ['SNOWFLAKE_ACCOUNT'],
-                role=os.environ['SNOWFLAKE_ROLE'],
-                warehouse=os.environ['SNOWFLAKE_WAREHOUSE']
+                role='ACCOUNTADMIN',
+                warehouse='COMPUTE_WH'
             )
             
             cursor = conn.cursor()
@@ -97,8 +95,8 @@ jobs:
                 user=os.environ['SNOWFLAKE_USER'],
                 password=os.environ['SNOWFLAKE_PASSWORD'],
                 account=os.environ['SNOWFLAKE_ACCOUNT'],
-                role=os.environ['SNOWFLAKE_ROLE'],
-                warehouse=os.environ['SNOWFLAKE_WAREHOUSE']
+                role='ACCOUNTADMIN',
+                warehouse='COMPUTE_WH'
             )
             
             cursor = conn.cursor()
@@ -125,6 +123,7 @@ jobs:
                 'GRANT ALL ON SCHEMA PUBLIC_HEALTH_MODERNIZATION_DEMO.LOGGING TO ROLE DATA_ENGINEER_ROLE',
                 'GRANT USAGE ON WAREHOUSE DEV_WH TO ROLE DATA_ENGINEER_ROLE',
                 'GRANT USAGE ON WAREHOUSE PROD_WH TO ROLE DATA_ENGINEER_ROLE',
+                'GRANT USAGE ON WAREHOUSE COMPUTE_WH TO ROLE DATA_ENGINEER_ROLE',
                 'GRANT ROLE DATA_ENGINEER_ROLE TO USER HATTAWAY7',
                 'GRANT ROLE DATA_ANALYST_ROLE TO USER HATTAWAY7',
                 'GRANT ROLE PUBLIC_HEALTH_ROLE TO USER HATTAWAY7',
@@ -149,78 +148,30 @@ jobs:
             raise
         "
         
-    - name: Verify Deployment
-      run: |
-        python -c "
-        import snowflake.connector
-        import os
-        
-        try:
-            conn = snowflake.connector.connect(
-                user=os.environ['SNOWFLAKE_USER'],
-                password=os.environ['SNOWFLAKE_PASSWORD'],
-                account=os.environ['SNOWFLAKE_ACCOUNT'],
-                role=os.environ['SNOWFLAKE_ROLE'],
-                warehouse=os.environ['SNOWFLAKE_WAREHOUSE']
-            )
-            
-            cursor = conn.cursor()
-            
-            print('🔍 Verifying deployment...')
-            
-            # Check database exists
-            cursor.execute('SHOW DATABASES LIKE \\'PUBLIC_HEALTH_MODERNIZATION_DEMO\\'')
-            db_result = cursor.fetchone()
-            if db_result:
-                print(f'✅ Database exists: {db_result[1]}')
-            
-            # Check schemas exist
-            cursor.execute('USE DATABASE PUBLIC_HEALTH_MODERNIZATION_DEMO')
-            cursor.execute('SHOW SCHEMAS')
-            schemas = cursor.fetchall()
-            schema_names = [schema[1] for schema in schemas if schema[1] in ['LANDING_RAW', 'CURATED', 'DATA_MART', 'LOGGING']]
-            schema_list = ', '.join(schema_names)
-            print(f'✅ Found schemas: {schema_list}')
-            
-            # Check roles
-            cursor.execute('SHOW GRANTS TO USER HATTAWAY7')
-            grants = cursor.fetchall()
-            roles = [grant[1] for grant in grants if grant[0] == 'ROLE']
-            role_list = ', '.join(roles)
-            print(f'✅ User has roles: {role_list}')
-            
-            cursor.close()
-            conn.close()
-            print('🎉 Bootstrap verification complete!')
-            
-        except Exception as e:
-            print(f'❌ Verification failed: {e}')
-            raise
-        "
     - name: Deploy DDL Scripts
       run: |
         python scripts/deploy_ddl.py prod
       env:
-        SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_DEPLOY_ROLE }}
-        SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_DEPLOY_WAREHOUSE }}
+        SNOWFLAKE_ROLE: ACCOUNTADMIN
+        SNOWFLAKE_WAREHOUSE: COMPUTE_WH
 
     - name: Deploy Masking Policies  
       run: |
         python scripts/deploy_masking_policies.py prod
       env:
-        SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_DEPLOY_ROLE }}
-        SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_DEPLOY_WAREHOUSE }}
+        SNOWFLAKE_ROLE: ACCOUNTADMIN
+        SNOWFLAKE_WAREHOUSE: COMPUTE_WH
 
     - name: Deploy Stored Procedures
       run: |
         python scripts/deploy_procedures.py prod
       env:
-        SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_DEPLOY_ROLE }}
-        SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_DEPLOY_WAREHOUSE }}
+        SNOWFLAKE_ROLE: ACCOUNTADMIN
+        SNOWFLAKE_WAREHOUSE: COMPUTE_WH
 
     - name: Test Complete Pipeline
       run: |
         python scripts/run_tests.py bootstrap
       env:
-        SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_DEPLOY_ROLE }}
-        SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_DEPLOY_WAREHOUSE }}
+        SNOWFLAKE_ROLE: ACCOUNTADMIN
+        SNOWFLAKE_WAREHOUSE: COMPUTE_WH

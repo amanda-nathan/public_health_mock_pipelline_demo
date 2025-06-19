@@ -1,7 +1,8 @@
+-- ✅ Fixed: Let deployment script handle role, just focus on database/schema context
 USE DATABASE PUBLIC_HEALTH_MODERNIZATION_DEMO;
 USE SCHEMA LOGGING;
 
- 
+-- Pipeline execution tracking table
 CREATE OR REPLACE TABLE pipeline_execution_log (
   log_id INTEGER AUTOINCREMENT,
   procedure_name VARCHAR(100),
@@ -12,10 +13,11 @@ CREATE OR REPLACE TABLE pipeline_execution_log (
   error_message VARCHAR(5000),
   user_name VARCHAR(100),
   warehouse_name VARCHAR(100),
+  details VARCHAR(1000),
   PRIMARY KEY (log_id)
 );
 
- 
+-- Data quality monitoring table
 CREATE OR REPLACE TABLE data_quality_log (
   log_id INTEGER AUTOINCREMENT,
   table_name VARCHAR(100),
@@ -40,3 +42,9 @@ FROM pipeline_execution_log
 WHERE DATE(execution_start) = CURRENT_DATE()
 GROUP BY procedure_name, execution_status
 ORDER BY last_run_time DESC;
+
+-- Grant permissions to DATA_ENGINEER_ROLE for all logging objects
+GRANT ALL ON ALL TABLES IN SCHEMA LOGGING TO ROLE DATA_ENGINEER_ROLE;
+GRANT ALL ON ALL VIEWS IN SCHEMA LOGGING TO ROLE DATA_ENGINEER_ROLE;
+GRANT ALL ON FUTURE TABLES IN SCHEMA LOGGING TO ROLE DATA_ENGINEER_ROLE;
+GRANT ALL ON FUTURE VIEWS IN SCHEMA LOGGING TO ROLE DATA_ENGINEER_ROLE;

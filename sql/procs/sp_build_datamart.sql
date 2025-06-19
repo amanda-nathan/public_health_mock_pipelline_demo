@@ -15,6 +15,10 @@ DECLARE
   result_msg STRING := '';
 BEGIN
   
+  -- ✅ Fixed: Ensure proper schema context within procedure
+  USE DATABASE PUBLIC_HEALTH_MODERNIZATION_DEMO;
+  USE SCHEMA DATA_MART;
+  
   -- Log procedure start
   INSERT INTO logging.pipeline_execution_log 
     (procedure_name, execution_start, execution_status, user_name, warehouse_name)
@@ -124,10 +128,8 @@ BEGIN
   
   risk_row_count := SQLROWCOUNT;
   
-  -- ✅ Fixed: Added : prefix for variable references
   result_msg := 'Successfully built data mart: ' || :dashboard_row_count || ' dashboard records, ' || :risk_row_count || ' risk summary records';
   
-  -- ✅ Fixed: Added : prefix for variable references
   -- Update execution log
   UPDATE logging.pipeline_execution_log 
   SET 

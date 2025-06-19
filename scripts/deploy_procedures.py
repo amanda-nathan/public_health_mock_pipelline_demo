@@ -13,8 +13,8 @@ def connect_to_snowflake():
         user=os.environ['SNOWFLAKE_USER'],
         password=os.environ['SNOWFLAKE_PASSWORD'],
         account=os.environ['SNOWFLAKE_ACCOUNT'],
-        role=os.environ.get('SNOWFLAKE_ROLE', 'ACCOUNTADMIN'),  # ✅ Fixed
-        warehouse=os.environ.get('SNOWFLAKE_WAREHOUSE', 'COMPUTE_WH'),  # ✅ Fixed
+        role=os.environ.get('SNOWFLAKE_ROLE', 'ACCOUNTADMIN'),
+        warehouse=os.environ.get('SNOWFLAKE_WAREHOUSE', 'COMPUTE_WH'),
         database=os.environ.get('SNOWFLAKE_DATABASE', 'PUBLIC_HEALTH_MODERNIZATION_DEMO')
     )
 
@@ -77,23 +77,51 @@ def execute_sql_file(cursor, file_path):
                 print(f"  ⚠️ Statement {i+1}/{len(statements)} failed: {str(e)[:150]}")
         
         return success_count > 0
+
+def grant_procedure_permissions(cursor):
+    """Grant procedure permissions to DATA_ENGINEER_ROLE"""
+    print("🔐 Granting procedure permissions to DATA_ENGINEER_ROLE...")
+    
+    grant_commands = [
+        "GRANT USAGE ON ALL PROCEDURES IN SCHEMA PUBLIC_HEALTH_MODERNIZATION_DEMO.LANDING_RAW TO ROLE DATA_ENGINEER_ROLE",
+        "GRANT USAGE ON ALL PROCEDURES IN SCHEMA PUBLIC_HEALTH_MODERNIZATION_DEMO.CURATED TO ROLE DATA_ENGINEER_ROLE",
+        "GRANT USAGE ON ALL PROCEDURES IN SCHEMA PUBLIC_HEALTH_MODERNIZATION_DEMO.DATA_MART TO ROLE DATA_ENGINEER_ROLE",
+        "GRANT USAGE ON FUTURE PROCEDURES IN SCHEMA PUBLIC_HEALTH_MODERNIZATION_DEMO.LANDING_RAW TO ROLE DATA_ENGINEER_ROLE",
+        "GRANT USAGE ON FUTURE PROCEDURES IN SCHEMA PUBLIC_HEALTH_MODERNIZATION_DEMO.CURATED TO ROLE DATA_ENGINEER_ROLE",
+        "GRANT USAGE ON FUTURE PROCEDURES IN SCHEMA PUBLIC_HEALTH_MODERNIZATION_DEMO.DATA_MART TO ROLE DATA_ENGINEER_ROLE"
+    ]
+    
+    success_count = 0
+    for command in grant_commands:
+        try:
+            cursor.execute(command)
+            success_count += 1
+            print(f"  ✅ {command[:80]}...")
+        except Exception as e:
+            print(f"  ⚠️ Grant failed: {str(e)[:100]}")
+    
+    print(f"🔐 Applied {success_count}/{len(grant_commands)} procedure grants")
+    
 def main():
     environment = sys.argv[1] if len(sys.argv) > 1 else 'dev'
     
     print(f"🚀 Deploying stored procedures to {environment} environment")
     
-   
-    
     try:
         conn = connect_to_snowflake()
         cursor = conn.cursor()
+        
+        # Ensure we're using ACCOUNTADMIN for deployment
+        cursor.execute("USE ROLE ACCOUNTADMIN")
+        cursor.execute("USE DATABASE PUBLIC_HEALTH_MODERNIZATION_DEMO")
     
         # Get procedure files
         proc_files = [
             'sql/procs/sp_ingest_raw_data.sql',
-         'sql/procs/sp_process_curated_data.sql',
+            'sql/procs/sp_process_curated_data.sql',
             'sql/procs/sp_build_datamart.sql'
         ]
+        
         executed_count = 0
         for proc_file in proc_files:
             if Path(proc_file).exists():
@@ -101,6 +129,9 @@ def main():
                     executed_count += 1
             else:
                 print(f"⚠️ File not found: {proc_file}")
+        
+        # Grant permissions for procedures
+        grant_procedure_permissions(cursor)
         
         print(f"🎉 Stored procedures deployment completed! {executed_count}/{len(proc_files)} files executed successfully")
         

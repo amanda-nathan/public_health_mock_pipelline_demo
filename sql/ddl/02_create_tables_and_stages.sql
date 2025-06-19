@@ -1,7 +1,5 @@
- 
+-- Removed role, WH context. Let deployment script handle role/warehouse; focus on database/schema context
 USE DATABASE PUBLIC_HEALTH_MODERNIZATION_DEMO;
-USE ROLE DATA_ENGINEER_ROLE;
-USE WAREHOUSE DEV_WH;
 
  
 USE SCHEMA LANDING_RAW;
@@ -47,7 +45,7 @@ CREATE TABLE IF NOT EXISTS raw_environmental_health_data (
   load_timestamp TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
 );
 
--- Curated layer tables
+ 
 USE SCHEMA CURATED;
 
 CREATE TABLE IF NOT EXISTS curated_health_indicators (
@@ -83,8 +81,7 @@ CREATE TABLE IF NOT EXISTS curated_environmental_data (
   data_quality_flag VARCHAR(10),
   load_timestamp TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
 );
-
--- Data Mart layer tables
+ 
 USE SCHEMA DATA_MART;
 
 CREATE TABLE IF NOT EXISTS public_health_dashboard (
@@ -114,30 +111,12 @@ CREATE TABLE IF NOT EXISTS environmental_risk_summary (
   last_updated TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
 );
 
--- Logging tables  
-USE SCHEMA LOGGING;
+ 
+GRANT ALL ON ALL TABLES IN SCHEMA LANDING_RAW TO ROLE DATA_ENGINEER_ROLE;
+GRANT ALL ON ALL TABLES IN SCHEMA CURATED TO ROLE DATA_ENGINEER_ROLE;
+GRANT ALL ON ALL TABLES IN SCHEMA DATA_MART TO ROLE DATA_ENGINEER_ROLE;
 
-CREATE TABLE IF NOT EXISTS pipeline_execution_log (
-  log_id INTEGER AUTOINCREMENT,
-  procedure_name VARCHAR(100),
-  execution_start TIMESTAMP_NTZ,
-  execution_end TIMESTAMP_NTZ,
-  execution_status VARCHAR(20),
-  rows_processed INTEGER,
-  error_message VARCHAR(5000),
-  user_name VARCHAR(100),
-  warehouse_name VARCHAR(100),
-  PRIMARY KEY (log_id)
-);
-
-CREATE TABLE IF NOT EXISTS data_quality_log (
-  log_id INTEGER AUTOINCREMENT,
-  table_name VARCHAR(100),
-  quality_check_name VARCHAR(100),
-  check_result VARCHAR(20),
-  check_value FLOAT,
-  threshold_value FLOAT,
-  check_timestamp TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
-  details VARCHAR(1000),
-  PRIMARY KEY (log_id)
-);
+ 
+GRANT ALL ON FUTURE TABLES IN SCHEMA LANDING_RAW TO ROLE DATA_ENGINEER_ROLE;
+GRANT ALL ON FUTURE TABLES IN SCHEMA CURATED TO ROLE DATA_ENGINEER_ROLE;
+GRANT ALL ON FUTURE TABLES IN SCHEMA DATA_MART TO ROLE DATA_ENGINEER_ROLE;
