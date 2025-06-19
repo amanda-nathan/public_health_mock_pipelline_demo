@@ -200,11 +200,20 @@ jobs:
     - name: Deploy DDL Scripts
       run: |
         python scripts/deploy_ddl.py prod
+      env:
+        SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_DEPLOY_ROLE }}
+        SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_DEPLOY_WAREHOUSE }}
 
     - name: Deploy Stored Procedures
       run: |
         python scripts/deploy_procedures.py prod
+      env:
+        SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_DEPLOY_ROLE }}
+        SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_DEPLOY_WAREHOUSE }}
 
     - name: Test Complete Pipeline
       run: |
         python scripts/run_tests.py bootstrap
+      env:
+        SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_DEPLOY_ROLE }}
+        SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_DEPLOY_WAREHOUSE }}
