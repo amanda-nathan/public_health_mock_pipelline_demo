@@ -14,20 +14,20 @@ DECLARE
   result_msg STRING := '';
 BEGIN
   
-  -- Log procedure start
+  
   INSERT INTO logging.pipeline_execution_log 
     (procedure_name, execution_start, execution_status, user_name, warehouse_name)
   VALUES 
     ('sp_ingest_raw_data', :proc_start, 'RUNNING', CURRENT_USER(), CURRENT_WAREHOUSE());
   
-  -- Ingest based on source type
+  
   IF (:source_type = 'CDC_PLACES') THEN
     
-    -- Truncate and reload CDC Places data
+ 
     TRUNCATE TABLE raw_cdc_places_data;
     
     -- In a real scenario, this would use COPY INTO from stage
-    -- For demo purposes, we'll insert sample data
+    -- For demo purposes, I'll insert sample data
     INSERT INTO raw_cdc_places_data (
       state_abbr, county_name, measure_id, data_value, population, 
       latitude, longitude, category, measure, unitofmeasure, 
@@ -55,7 +55,7 @@ BEGIN
     
   ELSEIF (:source_type = 'ENVIRONMENTAL') THEN
     
-    -- Truncate and reload Environmental data
+ 
     TRUNCATE TABLE raw_environmental_health_data;
     
     INSERT INTO raw_environmental_health_data (
@@ -82,7 +82,7 @@ BEGIN
     result_msg := error_msg;
   END IF;
   
-  -- Update execution log
+   
   UPDATE logging.pipeline_execution_log 
   SET 
     execution_end = CURRENT_TIMESTAMP(),
@@ -92,7 +92,7 @@ BEGIN
   WHERE procedure_name = 'sp_ingest_raw_data' 
     AND execution_start = :proc_start;
   
-  -- Data quality check
+  
   IF (:source_type = 'CDC_PLACES' AND row_count > 0) THEN
     INSERT INTO logging.data_quality_log 
       (table_name, quality_check_name, check_result, check_value, threshold_value, details)
