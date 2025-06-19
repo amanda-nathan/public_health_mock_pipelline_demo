@@ -222,14 +222,14 @@ def main():
     """Main exploration function"""
     print("🔍 Exploring Your Public Health Data Pipeline")
     print("=" * 60)
-    print("This will show you what your pipeline has created and how it works!\n")
+    print("What our pipeline has created and how it works!\n")
     
     try:
-        # Connect as DATA_ENGINEER_ROLE
+         
         conn = connect_to_snowflake('DATA_ENGINEER_ROLE')
         cursor = conn.cursor()
         
-        # Make sure we're in the right context
+        # 
         cursor.execute("USE DATABASE PUBLIC_HEALTH_MODERNIZATION_DEMO")
         cursor.execute("USE WAREHOUSE DEV_WH")
         
@@ -244,15 +244,14 @@ def main():
         # Summary
         print("\n" + "=" * 60)
         print("🎉 Pipeline Exploration Complete!")
-        print("\n📝 What you've built:")
         print("  ✅ Automated data ingestion (mock CDC & environmental data)")
         print("  ✅ Data transformation pipeline (raw → curated → data mart)")
         print("  ✅ Role-based security with data masking")
         print("  ✅ Comprehensive logging and monitoring")
         print("  ✅ Scheduled tasks for automation")
         print("  ✅ Production-ready stored procedures")
-        print("\n🚀 Your pipeline is ready for xFact! This demonstrates:")
-        print("  • Snowflake native development (no DBT)")
+        print("\n🚀 Pipeline is ready! This demonstrates:")
+        print("  • Snowflake native development")
         print("  • CI/CD best practices")
         print("  • Data security and governance")
         print("  • Automated monitoring and quality checks")

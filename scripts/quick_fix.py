@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Quick fix script to ensure everything is set up correctly
-Run this manually if you need to fix permissions and verify the setup
+Run this manually if we need to fix permissions and verify the setup
 """
 import os
 import snowflake.connector
