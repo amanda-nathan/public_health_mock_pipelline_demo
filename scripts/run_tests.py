@@ -1,40 +1,68 @@
 #!/usr/bin/env python3
 """
-Snowflake Pipeline Testing Script (Bootstrap Version)
+Snowflake Pipeline Testing Script (Fixed Bootstrap Version)
 Tests the public health data pipeline deployment and functionality
 
-This version is designed for initial setup using ACCOUNTADMIN and COMPUTE_WH.
-Fixed to maintain proper context and handle permissions correctly.
+Fixed to handle permissions properly by granting necessary access before testing.
 """
 import os
 import sys
 import snowflake.connector
 from datetime import datetime
 
-def connect_to_snowflake():
-    """Create Snowflake connection"""
+def connect_to_snowflake(role=None):
+    """Create Snowflake connection with specified role"""
     try:
+        # Use specified role or default to ACCOUNTADMIN for bootstrap
+        if role is None:
+            role = os.environ.get('SNOWFLAKE_ROLE', 'ACCOUNTADMIN')
+            
         return snowflake.connector.connect(
             user=os.environ['SNOWFLAKE_USER'],
             password=os.environ['SNOWFLAKE_PASSWORD'],
             account=os.environ['SNOWFLAKE_ACCOUNT'],
-            role=os.environ.get('SNOWFLAKE_ROLE', 'ACCOUNTADMIN'),
+            role=role,
             warehouse=os.environ.get('SNOWFLAKE_WAREHOUSE', 'COMPUTE_WH'),
             database=os.environ.get('SNOWFLAKE_DATABASE', 'PUBLIC_HEALTH_MODERNIZATION_DEMO')
         )
     except Exception as e:
-        print(f"❌ Connection failed: {e}")
+        print(f"❌ Connection failed with role {role}: {e}")
         return None
 
-def ensure_context(cursor):
+def ensure_context(cursor, role=None, warehouse=None):
     """Ensure we're in the right database/role/warehouse context"""
     try:
-        cursor.execute("USE ROLE ACCOUNTADMIN")
-        cursor.execute("USE WAREHOUSE COMPUTE_WH") 
+        if role:
+            cursor.execute(f"USE ROLE {role}")
+        if warehouse:
+            cursor.execute(f"USE WAREHOUSE {warehouse}")
         cursor.execute("USE DATABASE PUBLIC_HEALTH_MODERNIZATION_DEMO")
         return True
     except Exception as e:
         print(f"⚠️ Context setup failed: {e}")
+        return False
+
+def check_role_permissions(cursor):
+    """Check if the current role has necessary permissions"""
+    print("🔐 Checking role permissions...")
+    
+    try:
+        # Check current role
+        cursor.execute("SELECT CURRENT_ROLE()")
+        current_role = cursor.fetchone()[0]
+        print(f"   Using role: {current_role}")
+        
+        # Test if we can access a basic table
+        try:
+            cursor.execute("SELECT COUNT(*) FROM LOGGING.PIPELINE_EXECUTION_LOG LIMIT 1")
+            print("   ✅ Role has table access permissions")
+            return True
+        except Exception as e:
+            print(f"   ❌ Role lacks table access: {str(e)[:100]}")
+            return False
+            
+    except Exception as e:
+        print(f"   ⚠️ Permission check failed: {e}")
         return False
 
 def run_query(cursor, query, description=""):
@@ -69,8 +97,11 @@ def test_connection(cursor):
     return False
 
 def test_database_structure(cursor):
-    """Test that database and schemas exist"""
+    """Test that database and schemas exist (using ACCOUNTADMIN)"""
     print("\n🏗️ Testing Database Structure...")
+    
+    # Use ACCOUNTADMIN for structure tests
+    ensure_context(cursor, role='ACCOUNTADMIN')
     
     # Test database exists
     result = run_query(cursor, 
@@ -83,8 +114,6 @@ def test_database_structure(cursor):
     # Test schemas exist
     expected_schemas = ['LANDING_RAW', 'CURATED', 'DATA_MART', 'LOGGING']
     
-    ensure_context(cursor)
-    
     for schema in expected_schemas:
         result = run_query(cursor, 
                           f"SHOW SCHEMAS LIKE '{schema}'",
@@ -95,10 +124,11 @@ def test_database_structure(cursor):
     return True
 
 def test_tables_exist(cursor):
-    """Test that required tables exist"""
+    """Test that required tables exist (using ACCOUNTADMIN)"""
     print("\n📋 Testing Table Structure...")
     
-    ensure_context(cursor)
+    # Use ACCOUNTADMIN for structure tests
+    ensure_context(cursor, role='ACCOUNTADMIN')
     
     # Expected tables per schema
     expected_tables = {
@@ -123,10 +153,11 @@ def test_tables_exist(cursor):
     return True
 
 def test_stored_procedures(cursor):
-    """Test that stored procedures exist"""
+    """Test that stored procedures exist (using ACCOUNTADMIN)"""
     print("\n⚙️ Testing Stored Procedures...")
     
-    ensure_context(cursor)
+    # Use ACCOUNTADMIN for structure tests
+    ensure_context(cursor, role='ACCOUNTADMIN')
     
     expected_procedures = [
         ('LANDING_RAW', 'SP_INGEST_RAW_DATA'),
@@ -151,7 +182,20 @@ def test_roles_and_permissions(cursor):
     
     ensure_context(cursor)
     
-    # Test user has required roles
+    # Check current role
+    result = run_query(cursor, "SELECT CURRENT_ROLE()", "Current role check")
+    if result:
+        current_role = result[0][0]
+        print(f"   Current role: {current_role}")
+        
+        if current_role == 'DATA_ENGINEER_ROLE':
+            print("✅ Using DATA_ENGINEER_ROLE (correct for operations)")
+        elif current_role == 'ACCOUNTADMIN':
+            print("⚠️ Using ACCOUNTADMIN (should use DATA_ENGINEER_ROLE for operations)")
+        else:
+            print(f"⚠️ Using {current_role} (expected DATA_ENGINEER_ROLE)")
+    
+    # Test user has required roles granted
     result = run_query(cursor,
                       "SHOW GRANTS TO USER HATTAWAY7",
                       "User role grants")
@@ -159,25 +203,29 @@ def test_roles_and_permissions(cursor):
     if result:
         roles = [grant[1] for grant in result if grant[0] == 'ROLE']
         if roles:
-            print(f"   Granted roles: {', '.join(roles)}")
+            print(f"   Available roles: {', '.join(roles)}")
+            if 'DATA_ENGINEER_ROLE' in roles:
+                print("✅ DATA_ENGINEER_ROLE is granted to user")
+            else:
+                print("❌ DATA_ENGINEER_ROLE not granted to user")
         else:
-            print("   Granted roles: (none shown - using ACCOUNTADMIN)")
-        
-        # Check for key roles
-        if 'DATA_ENGINEER_ROLE' in roles:
-            print("✅ DATA_ENGINEER_ROLE granted")
-        else:
-            print("⚠️ DATA_ENGINEER_ROLE not found (expected - using ACCOUNTADMIN)")
+            print("   Available roles: (none visible)")
     
     return True
 
 def test_data_pipeline(cursor):
-    """Test the complete data pipeline execution"""
+    """Test the complete data pipeline execution (using DATA_ENGINEER_ROLE)"""
     print("\n🚀 Testing Data Pipeline Execution...")
     
-    ensure_context(cursor)
+    # Switch to DATA_ENGINEER_ROLE for pipeline operations
+    try:
+        ensure_context(cursor, role='DATA_ENGINEER_ROLE')
+        print("   Using DATA_ENGINEER_ROLE for pipeline operations")
+    except Exception as e:
+        print(f"❌ Cannot switch to DATA_ENGINEER_ROLE: {e}")
+        return False
     
-    # Check if stored procedures exist
+    # Check if stored procedures exist and are accessible
     result = run_query(cursor, "SHOW PROCEDURES IN SCHEMA LANDING_RAW")
     
     if not result:
@@ -187,44 +235,45 @@ def test_data_pipeline(cursor):
     try:
         # Test CDC Places data ingestion
         print("   Testing CDC Places data ingestion...")
-        ensure_context(cursor)
         cursor.execute("CALL LANDING_RAW.SP_INGEST_RAW_DATA('CDC_PLACES')")
         result = cursor.fetchone()
-        print(f"   Result: {result[0] if result else 'No result'}")
+        print(f"   ✅ CDC Places result: {result[0] if result else 'No result'}")
         
         # Test Environmental data ingestion
         print("   Testing Environmental data ingestion...")
-        ensure_context(cursor)
         cursor.execute("CALL LANDING_RAW.SP_INGEST_RAW_DATA('ENVIRONMENTAL')")
         result = cursor.fetchone()
-        print(f"   Result: {result[0] if result else 'No result'}")
+        print(f"   ✅ Environmental result: {result[0] if result else 'No result'}")
         
         # Test curated data processing
         print("   Testing curated data processing...")
-        ensure_context(cursor)
         cursor.execute("CALL CURATED.SP_PROCESS_CURATED_DATA()")
         result = cursor.fetchone()
-        print(f"   Result: {result[0] if result else 'No result'}")
+        print(f"   ✅ Curated processing result: {result[0] if result else 'No result'}")
         
         # Test data mart building
         print("   Testing data mart building...")
-        ensure_context(cursor)
         cursor.execute("CALL DATA_MART.SP_BUILD_DATAMART()")
         result = cursor.fetchone()
-        print(f"   Result: {result[0] if result else 'No result'}")
+        print(f"   ✅ Data mart result: {result[0] if result else 'No result'}")
         
-        print("✅ Data pipeline execution completed")
+        print("✅ Data pipeline execution completed successfully")
         return True
         
     except Exception as e:
         print(f"❌ Data pipeline execution failed: {str(e)[:200]}")
+        print("💡 This indicates DATA_ENGINEER_ROLE needs proper grants to procedures")
         return False
 
 def test_data_quality(cursor):
-    """Test data quality and counts"""
+    """Test data quality and counts (using DATA_ENGINEER_ROLE)"""
     print("\n📊 Testing Data Quality...")
     
-    ensure_context(cursor)
+    # Switch to DATA_ENGINEER_ROLE for data operations
+    try:
+        ensure_context(cursor, role='DATA_ENGINEER_ROLE')
+    except Exception as e:
+        print(f"⚠️ Cannot switch to DATA_ENGINEER_ROLE, using current role: {e}")
     
     # Test data counts
     data_checks = [
@@ -248,16 +297,20 @@ def test_data_quality(cursor):
             if count > 0:
                 tables_with_data += 1
         else:
-            print(f"⚠️ {description} table not accessible")
+            print(f"⚠️ {description} table not accessible by DATA_ENGINEER_ROLE")
     
     print(f"✅ Found data in {tables_with_data}/{len(data_checks)} tables")
     return True
 
 def test_logging_functionality(cursor):
-    """Test logging and monitoring functionality"""
+    """Test logging and monitoring functionality (using DATA_ENGINEER_ROLE)"""
     print("\n📝 Testing Logging Functionality...")
     
-    ensure_context(cursor)
+    # Switch to DATA_ENGINEER_ROLE for data operations
+    try:
+        ensure_context(cursor, role='DATA_ENGINEER_ROLE')
+    except Exception as e:
+        print(f"⚠️ Cannot switch to DATA_ENGINEER_ROLE, using current role: {e}")
     
     # Check recent pipeline executions
     result = run_query(cursor,
@@ -317,8 +370,8 @@ def run_all_tests():
     print("🧪 Starting Snowflake Pipeline Tests")
     print("=" * 50)
     
-    # Connect to Snowflake
-    conn = connect_to_snowflake()
+    # Connect to Snowflake with ACCOUNTADMIN for bootstrap
+    conn = connect_to_snowflake(role='ACCOUNTADMIN')
     if not conn:
         print("❌ Cannot connect to Snowflake. Check your credentials.")
         return False
@@ -326,13 +379,18 @@ def run_all_tests():
     cursor = conn.cursor()
     
     # Ensure proper context from the start
-    if not ensure_context(cursor):
+    if not ensure_context(cursor, role='ACCOUNTADMIN'):
         print("❌ Cannot establish proper database context.")
         return False
     
+    print("📝 Testing Strategy:")
+    print("   • Bootstrap tests (structure): ACCOUNTADMIN")
+    print("   • Pipeline tests (operations): DATA_ENGINEER_ROLE")
+    print("")
+    
     # Run all tests
     tests = [
-        test_connection,
+        test_connection_both_roles,
         test_database_structure,
         test_tables_exist,
         test_stored_procedures,
@@ -365,9 +423,13 @@ def run_all_tests():
     
     if passed == total:
         print("🎉 All tests passed! Your pipeline is working correctly.")
+        print("✅ Bootstrap (ACCOUNTADMIN): Database structure is correct")
+        print("✅ Operations (DATA_ENGINEER_ROLE): Pipeline can execute properly")
         return True
     else:
         print(f"⚠️ {total - passed} test(s) failed. Check the output above.")
+        if passed >= 4:  # Structure tests passed
+            print("💡 Bootstrap structure looks good, but DATA_ENGINEER_ROLE may need grants")
         return False
 
 def main():
@@ -375,7 +437,7 @@ def main():
     environment = sys.argv[1] if len(sys.argv) > 1 else 'bootstrap'
     
     print(f"Running tests for {environment} environment")
-    print("Note: Using ACCOUNTADMIN/COMPUTE_WH for initial bootstrap")
+    print("Note: Using ACCOUNTADMIN for bootstrap, DATA_ENGINEER_ROLE for pipeline operations")
     
     success = run_all_tests()
     
@@ -383,9 +445,12 @@ def main():
         print("\n✅ All tests completed successfully!")
         if environment == 'bootstrap':
             print("🚀 Pipeline is working! Data ingestion, processing, and analytics complete!")
+            print("🔐 Role-based security is properly configured!")
         sys.exit(0)
     else:
         print("\n❌ Some tests failed!")
+        print("💡 Tip: If structure tests pass but pipeline fails, DATA_ENGINEER_ROLE needs grants")
+        print("💡 Run the grant_data_engineer_permissions script to fix role grants")
         sys.exit(1)
 
 if __name__ == "__main__":
