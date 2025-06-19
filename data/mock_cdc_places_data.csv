@@ -1,4 +1,6 @@
-LocationID,County,State,Measure,Value,ContactEmail
-1,Los Angeles,CA,Obesity Rate,0.22,jane.doe@example.com
-2,Cook,IL,Smoking Rate,0.15,john.smith@example.com
-3,Harris,TX,Diabetes Rate,0.12,test.user@example.com
+state_abbr,county_name,measure_id,data_value,population,latitude,longitude,category,measure,unitofmeasure,data_value_type,geolocation,locationid,locationdesc,datasource,categoryid,measureid,datavaluetypeid,short_question_text,year
+MA,Middlesex,ACCESS2,15.2,1628706,42.3868,-71.2962,Health Care Access and Quality,Current lack of health insurance among adults aged 18–64 years,Percent,Age-adjusted prevalence,"(42.3868, -71.2962)",25017,Middlesex County,BRFSS,ACCESS2,ACCESS2,AgeAdjPrev,No health insurance,2021
+MA,Essex,ACCESS2,18.7,809829,42.6348,-70.9228,Health Care Access and Quality,Current lack of health insurance among adults aged 18–64 years,Percent,Age-adjusted prevalence,"(42.6348, -70.9228)",25009,Essex County,BRFSS,ACCESS2,ACCESS2,AgeAdjPrev,No health insurance,2021
+MA,Worcester,CANCER,456.2,862618,42.2553,-71.8973,Cancer,All cancer types age-adjusted incidence rate,Per 100000,Age-adjusted rate,"(42.2553, -71.8973)",25027,Worcester County,USCS,CANCER,CANCER,AgeAdjRate,Cancer incidence,2021
+MA,Hampden,DIABETES,11.8,470465,42.1015,-72.6282,Diabetes,Diabetes among adults aged ≥18 years,Percent,Age-adjusted prevalence,"(42.1015, -72.6282)",25013,Hampden County,BRFSS,DIABETES,DIABETES,AgeAdjPrev,Diabetes,2021
+MA,Bristol,OBESITY,28.9,579200,41.7597,-71.1469,Obesity,Obesity among adults aged ≥18 years,Percent,Age-adjusted prevalence,"(41.7597, -71.1469)",25005,Bristol County,BRFSS,OBESITY,OBESITY,AgeAdjPrev,Obesity,2021
