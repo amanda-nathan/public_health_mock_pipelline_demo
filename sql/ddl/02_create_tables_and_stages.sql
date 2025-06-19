@@ -2,25 +2,10 @@ USE DATABASE PUBLIC_HEALTH_MODERNIZATION_DEMO;
 USE SCHEMA LANDING_RAW;
 USE WAREHOUSE DEV_WH;
 
- 
-CREATE OR REPLACE FILE FORMAT csv_format
-  TYPE = 'CSV'
-  FIELD_DELIMITER = ','
-  SKIP_HEADER = 1
-  NULL_IF = ('NULL', 'null', '')
-  EMPTY_FIELD_AS_NULL = TRUE;
+-- Note: For Option 1 (direct data insertion), we don't need file formats or stages
+-- The stored procedures will insert data directly via SQL INSERT statements
 
- 
-CREATE OR REPLACE FILE FORMAT json_format
-  TYPE = 'JSON'
-  STRIP_OUTER_ARRAY = TRUE;
-
---Create internal stage (not using external storage right now)
-CREATE OR REPLACE STAGE public_health_stage
-  FILE_FORMAT = csv_format;
-
- 
-
+-- Landing/Raw layer tables
 CREATE OR REPLACE TABLE raw_cdc_places_data (
   state_abbr VARCHAR(2),
   county_name VARCHAR(100),
@@ -62,7 +47,7 @@ CREATE OR REPLACE TABLE raw_environmental_health_data (
   load_timestamp TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
 );
 
- 
+-- Curated layer tables
 USE SCHEMA CURATED;
 
 CREATE OR REPLACE TABLE curated_health_indicators (
@@ -99,7 +84,7 @@ CREATE OR REPLACE TABLE curated_environmental_data (
   load_timestamp TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
 );
 
- 
+-- Data Mart layer tables
 USE SCHEMA DATA_MART;
 
 CREATE OR REPLACE TABLE public_health_dashboard (
