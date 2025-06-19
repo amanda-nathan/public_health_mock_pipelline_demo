@@ -1,0 +1,116 @@
+name: Deploy to Snowflake
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+  SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+  SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+  SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE }}
+  SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+  SNOWFLAKE_DATABASE: PUBLIC_HEALTH_MODERNIZATION_DEMO
+
+jobs:
+  validate-sql:
+    runs-on: ubuntu-latest
+    name: Validate SQL Scripts
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Install dependencies
+      run: |
+        pip install snowflake-connector-python
+        pip install sqlfluff
+        
+    - name: Lint SQL files
+      run: |
+        sqlfluff lint sql/ --dialect snowflake --config .sqlfluff
+      continue-on-error: true
+      
+    - name: Validate SQL syntax
+      run: |
+        python scripts/validate_sql.py
+      continue-on-error: true
+
+  deploy-to-dev:
+    runs-on: ubuntu-latest
+    name: Deploy to Development
+    needs: validate-sql
+    if: github.ref == 'refs/heads/develop' || github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Install Snowflake connector
+      run: pip install snowflake-connector-python
+      
+    - name: Deploy DDL scripts
+      run: python scripts/deploy_ddl.py dev
+      env:
+        SNOWFLAKE_SCHEMA_SUFFIX: _DEV
+        
+    - name: Deploy stored procedures
+      run: python scripts/deploy_procedures.py dev
+      env:
+        SNOWFLAKE_SCHEMA_SUFFIX: _DEV
+        
+    - name: Run data quality tests
+      run: python scripts/run_tests.py dev
+      env:
+        SNOWFLAKE_SCHEMA_SUFFIX: _DEV
+
+  deploy-to-prod:
+    runs-on: ubuntu-latest
+    name: Deploy to Production
+    needs: [validate-sql, deploy-to-dev]
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Install Snowflake connector
+      run: pip install snowflake-connector-python
+      
+    - name: Deploy DDL scripts to Production
+      run: python scripts/deploy_ddl.py prod
+      
+    - name: Deploy stored procedures to Production
+      run: python scripts/deploy_procedures.py prod
+      
+    - name: Deploy tasks and automation
+      run: python scripts/deploy_tasks.py prod
+      
+    - name: Run production validation tests
+      run: python scripts/run_tests.py prod
+      
+    - name: Notify deployment success
+      if: success()
+      run: echo "✅ Production deployment successful!"
+      
+    - name: Notify deployment failure
+      if: failure()
+      run: echo "❌ Production deployment failed!"
