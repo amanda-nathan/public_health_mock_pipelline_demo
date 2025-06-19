@@ -107,7 +107,7 @@ def main():
     except Exception as e:
         print(f"❌ Stored procedures deployment failed: {e}")
         sys.exit(1)
-  finally:
+    finally:
         if 'cursor' in locals():   
             cursor.close()
         if 'conn' in locals():     
