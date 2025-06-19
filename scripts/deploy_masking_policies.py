@@ -1,25 +1,20 @@
 #!/usr/bin/env python3
-"""
-Deploy masking policies to Snowflake with proper dependency handling
-"""
 import os
 import sys
 import snowflake.connector
 from typing import List, Tuple
 
 def connect_to_snowflake():
-    """Create Snowflake connection"""
     return snowflake.connector.connect(
         user=os.environ['SNOWFLAKE_USER'],
         password=os.environ['SNOWFLAKE_PASSWORD'],
         account=os.environ['SNOWFLAKE_ACCOUNT'],
-        role=os.environ.get('SNOWFLAKE_ROLE', 'ACCOUNTADMIN'),
-        warehouse=os.environ.get('SNOWFLAKE_WAREHOUSE', 'COMPUTE_WH'),
+        role=os.environ.get('SNOWFLAKE_ROLE', 'DATA_ENGINEER_ROLE'),
+        warehouse=os.environ.get('SNOWFLAKE_WAREHOUSE', 'DEV_WH'),
         database=os.environ.get('SNOWFLAKE_DATABASE', 'PUBLIC_HEALTH_MODERNIZATION_DEMO')
     )
 
 def execute_with_error_handling(cursor, command: str, description: str = "") -> bool:
-    """Execute a command with error handling and logging."""
     try:
         cursor.execute(command)
         print(f"  ✅ {description or command[:60]}")
@@ -29,7 +24,6 @@ def execute_with_error_handling(cursor, command: str, description: str = "") -> 
         return False
 
 def get_known_policy_applications() -> List[Tuple[str, str, str, str]]:
-    """Return known policy applications based on our setup."""
     return [
         ('CURATED', 'curated_environmental_data', 'facility_address', 'address_mask'),
         ('CURATED', 'curated_health_indicators', 'latitude', 'coordinate_mask'),
@@ -38,7 +32,6 @@ def get_known_policy_applications() -> List[Tuple[str, str, str, str]]:
     ]
 
 def check_table_exists(cursor, schema: str, table: str) -> bool:
-    """Check if a table exists."""
     try:
         cursor.execute(f"USE SCHEMA {schema}")
         cursor.execute(f"SHOW TABLES LIKE '{table}'")
@@ -48,13 +41,11 @@ def check_table_exists(cursor, schema: str, table: str) -> bool:
         return False
 
 def unset_all_masking_policies(cursor) -> None:
-    """Unset all known masking policies from their columns."""
     print("🔓 Unsetting existing masking policies...")
     
     known_applications = get_known_policy_applications()
     
     for schema, table, column, policy in known_applications:
-        # Check if table exists before trying to unset
         if check_table_exists(cursor, schema, table):
             cursor.execute(f"USE SCHEMA {schema}")
             command = f"ALTER TABLE {table} MODIFY COLUMN {column} UNSET MASKING POLICY"
@@ -67,7 +58,6 @@ def unset_all_masking_policies(cursor) -> None:
             print(f"  ⚠️ Table {schema}.{table} does not exist, skipping unset for {column}")
 
 def check_policy_exists(cursor, schema: str, policy_name: str) -> bool:
-    """Check if a masking policy exists."""
     try:
         cursor.execute(f"USE SCHEMA {schema}")
         cursor.execute(f"SHOW MASKING POLICIES LIKE '{policy_name}'")
@@ -77,7 +67,6 @@ def check_policy_exists(cursor, schema: str, policy_name: str) -> bool:
         return False
 
 def drop_existing_policies(cursor) -> None:
-    """Drop existing masking policies if they exist."""
     print("🗑️ Dropping existing masking policies...")
     
     policies_to_drop = [
@@ -98,10 +87,8 @@ def drop_existing_policies(cursor) -> None:
             print(f"  ✅ Policy {policy} in {schema} does not exist, skipping")
 
 def create_masking_policies(cursor) -> None:
-    """Create new masking policies."""
     print("🏗️ Creating new masking policies...")
     
-    # Address masking policy
     cursor.execute("USE SCHEMA CURATED")
     if not check_policy_exists(cursor, 'CURATED', 'address_mask'):
         address_policy = """
@@ -117,7 +104,6 @@ def create_masking_policies(cursor) -> None:
     else:
         print("  ✅ address_mask policy already exists")
     
-    # Coordinate masking policy
     if not check_policy_exists(cursor, 'CURATED', 'coordinate_mask'):
         coordinate_policy = """
             CREATE MASKING POLICY coordinate_mask AS (val FLOAT) RETURNS FLOAT ->
@@ -131,7 +117,6 @@ def create_masking_policies(cursor) -> None:
     else:
         print("  ✅ coordinate_mask policy already exists")
     
-    # Population masking policy
     cursor.execute("USE SCHEMA DATA_MART")
     if not check_policy_exists(cursor, 'DATA_MART', 'population_mask'):
         population_policy = """
@@ -146,7 +131,6 @@ def create_masking_policies(cursor) -> None:
         print("  ✅ population_mask policy already exists")
 
 def apply_masking_policies(cursor) -> None:
-    """Apply masking policies to appropriate columns."""
     print("🔒 Applying masking policies to columns...")
     
     policy_applications = [
@@ -166,23 +150,19 @@ def apply_masking_policies(cursor) -> None:
         )
 
 def verify_deployment(cursor) -> None:
-    """Verify that policies are properly deployed."""
     print("🔍 Verifying masking policy deployment...")
     
     try:
-        # Check policies in CURATED schema
         cursor.execute("USE SCHEMA CURATED")
         cursor.execute("SHOW MASKING POLICIES")
         curated_policies = cursor.fetchall()
         print(f"  ✅ CURATED schema has {len(curated_policies)} masking policies")
         
-        # Check policies in DATA_MART schema
         cursor.execute("USE SCHEMA DATA_MART")
         cursor.execute("SHOW MASKING POLICIES")
         datamart_policies = cursor.fetchall()
         print(f"  ✅ DATA_MART schema has {len(datamart_policies)} masking policies")
         
-        # Verify specific policies exist
         expected_policies = [
             ('CURATED', 'address_mask'),
             ('CURATED', 'coordinate_mask'),
@@ -199,7 +179,6 @@ def verify_deployment(cursor) -> None:
         
         print(f"  ✅ {policies_verified}/{len(expected_policies)} expected policies verified")
         
-        # Test policy applications by checking known columns
         applications_verified = 0
         known_applications = get_known_policy_applications()
         
@@ -224,23 +203,13 @@ def main():
         conn = connect_to_snowflake()
         cursor = conn.cursor()
         
-        # Check what we're working with
         known_applications = get_known_policy_applications()
         print(f"📋 Will manage {len(known_applications)} policy applications")
         
-        # Step 1: Unset all existing masking policies from columns
         unset_all_masking_policies(cursor)
-        
-        # Step 2: Drop existing policies (only if they exist and are not attached)
         drop_existing_policies(cursor)
-        
-        # Step 3: Create new policies (only if they don't exist)
         create_masking_policies(cursor)
-        
-        # Step 4: Apply policies to columns (only if tables exist)
         apply_masking_policies(cursor)
-        
-        # Step 5: Verify deployment
         verify_deployment(cursor)
         
         print("🎉 Masking policy deployment completed successfully!")

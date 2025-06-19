@@ -15,17 +15,14 @@ DECLARE
   result_msg STRING := '';
 BEGIN
   
-  -- ✅ Fixed: Ensure proper schema context within procedure
   USE DATABASE PUBLIC_HEALTH_MODERNIZATION_DEMO;
   USE SCHEMA DATA_MART;
   
-  -- Log procedure start
   INSERT INTO logging.pipeline_execution_log 
     (procedure_name, execution_start, execution_status, user_name, warehouse_name)
   VALUES 
     ('sp_build_datamart', :proc_start, 'RUNNING', CURRENT_USER(), CURRENT_WAREHOUSE());
   
-  -- Build public health dashboard
   MERGE INTO public_health_dashboard AS target
   USING (
     WITH health_metrics AS (
@@ -92,7 +89,6 @@ BEGIN
   
   dashboard_row_count := SQLROWCOUNT;
   
-  -- Build environmental risk summary
   MERGE INTO environmental_risk_summary AS target
   USING (
     SELECT 
@@ -130,7 +126,6 @@ BEGIN
   
   result_msg := 'Successfully built data mart: ' || :dashboard_row_count || ' dashboard records, ' || :risk_row_count || ' risk summary records';
   
-  -- Update execution log
   UPDATE logging.pipeline_execution_log 
   SET 
     execution_end = CURRENT_TIMESTAMP(),

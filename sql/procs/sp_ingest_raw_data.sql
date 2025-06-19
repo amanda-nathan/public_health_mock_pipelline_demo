@@ -14,7 +14,6 @@ DECLARE
   result_msg STRING := '';
 BEGIN
   
-  -- ✅ Fixed: Ensure proper schema context within procedure
   USE DATABASE PUBLIC_HEALTH_MODERNIZATION_DEMO;
   USE SCHEMA LANDING_RAW;
   
@@ -78,7 +77,6 @@ BEGIN
     result_msg := :error_msg;
   END IF;
   
-  -- Update execution log
   UPDATE logging.pipeline_execution_log 
   SET 
     execution_end = CURRENT_TIMESTAMP(),
@@ -88,7 +86,6 @@ BEGIN
   WHERE procedure_name = 'sp_ingest_raw_data' 
     AND execution_start = :proc_start;
   
-  -- Log data quality check for successful CDC ingestion
   IF (:source_type = 'CDC_PLACES' AND :row_count > 0) THEN
     INSERT INTO logging.data_quality_log 
       (table_name, quality_check_name, check_result, check_value, threshold_value, details)

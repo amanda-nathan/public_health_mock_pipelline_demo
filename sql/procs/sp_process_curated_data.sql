@@ -1,157 +1,110 @@
 USE DATABASE PUBLIC_HEALTH_MODERNIZATION_DEMO;
-USE SCHEMA CURATED;
+USE SCHEMA LANDING_RAW;
 
-CREATE OR REPLACE PROCEDURE sp_process_curated_data()
+CREATE OR REPLACE PROCEDURE sp_ingest_raw_data(source_type STRING)
 RETURNS STRING
 LANGUAGE SQL
 EXECUTE AS CALLER
 AS
 $$
 DECLARE
-  health_row_count INTEGER;
-  env_row_count INTEGER;
+  row_count INTEGER;
   error_msg STRING := '';
   proc_start TIMESTAMP_NTZ := CURRENT_TIMESTAMP();
   result_msg STRING := '';
 BEGIN
   
-  -- ✅ Fixed: Ensure proper schema context within procedure
   USE DATABASE PUBLIC_HEALTH_MODERNIZATION_DEMO;
-  USE SCHEMA CURATED;
+  USE SCHEMA LANDING_RAW;
   
-  -- Log procedure start
   INSERT INTO logging.pipeline_execution_log 
     (procedure_name, execution_start, execution_status, user_name, warehouse_name)
   VALUES 
-    ('sp_process_curated_data', :proc_start, 'RUNNING', CURRENT_USER(), CURRENT_WAREHOUSE());
+    ('sp_ingest_raw_data', :proc_start, 'RUNNING', CURRENT_USER(), CURRENT_WAREHOUSE());
   
-  -- Process health indicators data
-  MERGE INTO curated_health_indicators AS target
-  USING (
-    SELECT 
-      CONCAT(state_abbr, '_', locationid, '_', measureid) as location_key,
-      state_abbr,
-      county_name,
-      category as measure_category,
-      measure as measure_name,
-      data_value as measure_value,
-      population,
-      latitude,
-      longitude,
-      year as data_year,
-      datasource as data_source,
-      CASE 
-        WHEN data_value IS NULL THEN 'MISSING'
-        WHEN data_value < 0 THEN 'INVALID'
-        ELSE 'VALID'
-      END as data_quality_flag
-    FROM landing_raw.raw_cdc_places_data
-  ) AS source
-  ON target.location_key = source.location_key
-  WHEN MATCHED THEN UPDATE SET
-    measure_value = source.measure_value,
-    population = source.population,
-    data_quality_flag = source.data_quality_flag,
-    load_timestamp = CURRENT_TIMESTAMP()
-  WHEN NOT MATCHED THEN INSERT (
-    location_key, state_abbr, county_name, measure_category, measure_name,
-    measure_value, population, latitude, longitude, data_year, data_source, data_quality_flag
-  ) VALUES (
-    source.location_key, source.state_abbr, source.county_name, source.measure_category, 
-    source.measure_name, source.measure_value, source.population, source.latitude, 
-    source.longitude, source.data_year, source.data_source, source.data_quality_flag
-  );
+  IF (:source_type = 'CDC_PLACES') THEN
+    TRUNCATE TABLE raw_cdc_places_data;
+    
+    INSERT INTO raw_cdc_places_data (
+      state_abbr, county_name, measure_id, data_value, population, 
+      latitude, longitude, category, measure, unitofmeasure, 
+      data_value_type, geolocation, locationid, locationdesc, 
+      datasource, categoryid, measureid, datavaluetypeid, 
+      short_question_text, year
+    ) VALUES 
+    ('MA', 'Middlesex', 'ACCESS2', 15.2, 1628706, 42.3868, -71.2962, 
+     'Health Care Access and Quality', 'Current lack of health insurance among adults aged 18–64 years', 
+     'Percent', 'Age-adjusted prevalence', '(42.3868, -71.2962)', '25017', 
+     'Middlesex County', 'BRFSS', 'ACCESS2', 'ACCESS2', 'AgeAdjPrev', 
+     'No health insurance', 2021),
+    ('MA', 'Essex', 'ACCESS2', 18.7, 809829, 42.6348, -70.9228, 
+     'Health Care Access and Quality', 'Current lack of health insurance among adults aged 18–64 years', 
+     'Percent', 'Age-adjusted prevalence', '(42.6348, -70.9228)', '25009', 
+     'Essex County', 'BRFSS', 'ACCESS2', 'ACCESS2', 'AgeAdjPrev', 
+     'No health insurance', 2021),
+    ('MA', 'Worcester', 'CANCER', 456.2, 862618, 42.2553, -71.8973, 
+     'Cancer', 'All cancer types age-adjusted incidence rate', 'Per 100000', 
+     'Age-adjusted rate', '(42.2553, -71.8973)', '25027', 'Worcester County', 
+     'USCS', 'CANCER', 'CANCER', 'AgeAdjRate', 'Cancer incidence', 2021);
+    
+    row_count := SQLROWCOUNT;
+    result_msg := 'Successfully ingested ' || :row_count || ' CDC Places records';
+    
+  ELSEIF (:source_type = 'ENVIRONMENTAL') THEN
+    TRUNCATE TABLE raw_environmental_health_data;
+    
+    INSERT INTO raw_environmental_health_data (
+      location_id, county, air_quality_index, pm25_concentration, 
+      lead_exposure_risk, water_quality_score, environmental_justice_score, 
+      vulnerable_population_pct, facility_name, facility_address, 
+      last_inspection_date, compliance_status, year
+    ) VALUES 
+    ('MA_25017_001', 'Middlesex', 42, 8.3, 'Low', 87, 0.65, 23.4, 
+     'Cambridge Environmental Monitor', '123 Main St, Cambridge, MA 02139', 
+     '2024-03-15', 'Compliant', 2024),
+    ('MA_25009_002', 'Essex', 48, 9.1, 'Moderate', 82, 0.72, 31.2, 
+     'Lynn Environmental Station', '456 Ocean Ave, Lynn, MA 01902', 
+     '2024-02-28', 'Non-Compliant', 2024),
+    ('MA_25027_003', 'Worcester', 51, 10.7, 'High', 75, 0.85, 38.9, 
+     'Worcester Industrial Monitor', '789 Industrial Rd, Worcester, MA 01608', 
+     '2024-01-20', 'Under Review', 2024);
+    
+    row_count := SQLROWCOUNT;
+    result_msg := 'Successfully ingested ' || :row_count || ' Environmental records';
+    
+  ELSE
+    error_msg := 'Invalid source_type: ' || :source_type;
+    result_msg := :error_msg;
+  END IF;
   
-  health_row_count := SQLROWCOUNT;
-  
-  -- Process environmental data
-  MERGE INTO curated_environmental_data AS target
-  USING (
-    SELECT 
-      location_id as location_key,
-      county,
-      air_quality_index,
-      pm25_concentration,
-      lead_exposure_risk as lead_risk_level,
-      water_quality_score,
-      environmental_justice_score,
-      vulnerable_population_pct,
-      facility_name,
-      facility_address,
-      last_inspection_date,
-      compliance_status,
-      year as data_year,
-      CASE 
-        WHEN air_quality_index IS NULL OR water_quality_score IS NULL THEN 'MISSING'
-        WHEN air_quality_index < 0 OR water_quality_score < 0 THEN 'INVALID'
-        ELSE 'VALID'
-      END as data_quality_flag
-    FROM landing_raw.raw_environmental_health_data
-  ) AS source
-  ON target.location_key = source.location_key
-  WHEN MATCHED THEN UPDATE SET
-    air_quality_index = source.air_quality_index,
-    pm25_concentration = source.pm25_concentration,
-    water_quality_score = source.water_quality_score,
-    environmental_justice_score = source.environmental_justice_score,
-    vulnerable_population_pct = source.vulnerable_population_pct,
-    compliance_status = source.compliance_status,
-    data_quality_flag = source.data_quality_flag,
-    load_timestamp = CURRENT_TIMESTAMP()
-  WHEN NOT MATCHED THEN INSERT (
-    location_key, county, air_quality_index, pm25_concentration, lead_risk_level,
-    water_quality_score, environmental_justice_score, vulnerable_population_pct,
-    facility_name, facility_address, last_inspection_date, compliance_status, 
-    data_year, data_quality_flag
-  ) VALUES (
-    source.location_key, source.county, source.air_quality_index, source.pm25_concentration,
-    source.lead_risk_level, source.water_quality_score, source.environmental_justice_score,
-    source.vulnerable_population_pct, source.facility_name, source.facility_address,
-    source.last_inspection_date, source.compliance_status, source.data_year, source.data_quality_flag
-  );
-  
-  env_row_count := SQLROWCOUNT;
-  
-  result_msg := 'Successfully processed ' || :health_row_count || ' health indicator records and ' || :env_row_count || ' environmental health records into curated layer';
-  
-  -- Update execution log with success
   UPDATE logging.pipeline_execution_log 
   SET 
     execution_end = CURRENT_TIMESTAMP(),
-    execution_status = 'SUCCESS',
-    rows_processed = :health_row_count + :env_row_count,
-    details = :result_msg
-  WHERE procedure_name = 'sp_process_curated_data' 
+    execution_status = CASE WHEN :error_msg = '' THEN 'SUCCESS' ELSE 'FAILED' END,
+    rows_processed = :row_count,
+    error_message = :error_msg
+  WHERE procedure_name = 'sp_ingest_raw_data' 
     AND execution_start = :proc_start;
   
-  -- Log data quality metrics
-  INSERT INTO logging.data_quality_log 
-    (table_name, quality_check_name, check_result, check_value, threshold_value, details)
-  VALUES 
-    ('curated_health_indicators', 'merge_operation_count', 'PASS', :health_row_count, 0, 'Health indicator records processed successfully'),
-    ('curated_environmental_data', 'merge_operation_count', 'PASS', :env_row_count, 0, 'Environmental health records processed successfully');
+  IF (:source_type = 'CDC_PLACES' AND :row_count > 0) THEN
+    INSERT INTO logging.data_quality_log 
+      (table_name, quality_check_name, check_result, check_value, threshold_value, details)
+    VALUES 
+      ('raw_cdc_places_data', 'row_count_check', 'PASS', :row_count, 1, 'Minimum row threshold met');
+  END IF;
   
   RETURN result_msg;
   
 EXCEPTION
   WHEN OTHER THEN
     error_msg := SQLERRM;
-    
-    -- Update execution log with failure
     UPDATE logging.pipeline_execution_log 
     SET 
       execution_end = CURRENT_TIMESTAMP(),
       execution_status = 'FAILED',
       error_message = :error_msg
-    WHERE procedure_name = 'sp_process_curated_data' 
+    WHERE procedure_name = 'sp_ingest_raw_data' 
       AND execution_start = :proc_start;
-      
-    -- Log the error for monitoring
-    INSERT INTO logging.data_quality_log 
-      (table_name, quality_check_name, check_result, check_value, details)
-    VALUES 
-      ('sp_process_curated_data', 'procedure_execution', 'FAIL', 0, 'Procedure failed: ' || :error_msg);
-    
-    RETURN 'ERROR: Curated data processing failed - ' || :error_msg;
+    RETURN 'ERROR: ' || :error_msg;
 END;
 $$;

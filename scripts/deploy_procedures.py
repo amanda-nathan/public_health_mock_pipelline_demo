@@ -1,35 +1,25 @@
 #!/usr/bin/env python3
-"""
-Deploy stored procedures to Snowflake
-"""
 import os
 import sys
 import snowflake.connector
 from pathlib import Path
 
 def connect_to_snowflake():
-    """Create Snowflake connection"""
     return snowflake.connector.connect(
         user=os.environ['SNOWFLAKE_USER'],
         password=os.environ['SNOWFLAKE_PASSWORD'],
         account=os.environ['SNOWFLAKE_ACCOUNT'],
-        role=os.environ.get('SNOWFLAKE_ROLE', 'ACCOUNTADMIN'),
-        warehouse=os.environ.get('SNOWFLAKE_WAREHOUSE', 'COMPUTE_WH'),
+        role=os.environ.get('SNOWFLAKE_ROLE', 'DATA_ENGINEER_ROLE'),
+        warehouse=os.environ.get('SNOWFLAKE_WAREHOUSE', 'DEV_WH'),
         database=os.environ.get('SNOWFLAKE_DATABASE', 'PUBLIC_HEALTH_MODERNIZATION_DEMO')
     )
 
 def execute_sql_file(cursor, file_path):
-    """Execute SQL file containing stored procedure"""
     print(f"📄 Deploying procedure from {file_path}")
     with open(file_path, 'r') as file:
         sql_content = file.read()
     
-    # Check if this is a stored procedure file
     if 'CREATE OR REPLACE PROCEDURE' in sql_content:
-        # For stored procedures, we need to handle the $$ blocks specially
-        # Split only on semicolons that are NOT inside $$ blocks
-        
-        # Simple approach: execute setup statements first, then the procedure
         lines = sql_content.strip().split('\n')
         setup_statements = []
         procedure_start = -1
@@ -41,7 +31,6 @@ def execute_sql_file(cursor, file_path):
             elif line.strip() and not line.strip().startswith('--'):
                 setup_statements.append(line.strip())
         
-        # Execute setup statements (USE DATABASE, USE SCHEMA, etc.)
         setup_sql = '\n'.join(setup_statements)
         if setup_sql:
             for stmt in setup_sql.split(';'):
@@ -53,7 +42,6 @@ def execute_sql_file(cursor, file_path):
                     except Exception as e:
                         print(f"  ⚠️ Setup failed: {str(e)[:100]}")
         
-        # Execute the procedure as one block
         if procedure_start >= 0:
             procedure_sql = '\n'.join(lines[procedure_start:])
             try:
@@ -64,7 +52,6 @@ def execute_sql_file(cursor, file_path):
                 print(f"  ❌ Procedure deployment failed: {str(e)[:200]}")
                 return False
     else:
-        # For non-procedure files, split on semicolons
         statements = [stmt.strip() for stmt in sql_content.split(';') if stmt.strip()]
         
         success_count = 0
@@ -78,30 +65,6 @@ def execute_sql_file(cursor, file_path):
         
         return success_count > 0
 
-def grant_procedure_permissions(cursor):
-    """Grant procedure permissions to DATA_ENGINEER_ROLE"""
-    print("🔐 Granting procedure permissions to DATA_ENGINEER_ROLE...")
-    
-    grant_commands = [
-        "GRANT USAGE ON ALL PROCEDURES IN SCHEMA PUBLIC_HEALTH_MODERNIZATION_DEMO.LANDING_RAW TO ROLE DATA_ENGINEER_ROLE",
-        "GRANT USAGE ON ALL PROCEDURES IN SCHEMA PUBLIC_HEALTH_MODERNIZATION_DEMO.CURATED TO ROLE DATA_ENGINEER_ROLE",
-        "GRANT USAGE ON ALL PROCEDURES IN SCHEMA PUBLIC_HEALTH_MODERNIZATION_DEMO.DATA_MART TO ROLE DATA_ENGINEER_ROLE",
-        "GRANT USAGE ON FUTURE PROCEDURES IN SCHEMA PUBLIC_HEALTH_MODERNIZATION_DEMO.LANDING_RAW TO ROLE DATA_ENGINEER_ROLE",
-        "GRANT USAGE ON FUTURE PROCEDURES IN SCHEMA PUBLIC_HEALTH_MODERNIZATION_DEMO.CURATED TO ROLE DATA_ENGINEER_ROLE",
-        "GRANT USAGE ON FUTURE PROCEDURES IN SCHEMA PUBLIC_HEALTH_MODERNIZATION_DEMO.DATA_MART TO ROLE DATA_ENGINEER_ROLE"
-    ]
-    
-    success_count = 0
-    for command in grant_commands:
-        try:
-            cursor.execute(command)
-            success_count += 1
-            print(f"  ✅ {command[:80]}...")
-        except Exception as e:
-            print(f"  ⚠️ Grant failed: {str(e)[:100]}")
-    
-    print(f"🔐 Applied {success_count}/{len(grant_commands)} procedure grants")
-    
 def main():
     environment = sys.argv[1] if len(sys.argv) > 1 else 'dev'
     
@@ -111,11 +74,12 @@ def main():
         conn = connect_to_snowflake()
         cursor = conn.cursor()
         
-        # Ensure we're using ACCOUNTADMIN for deployment
-        cursor.execute("USE ROLE ACCOUNTADMIN")
+        current_role = os.environ.get('SNOWFLAKE_ROLE', 'DATA_ENGINEER_ROLE')
+        current_warehouse = os.environ.get('SNOWFLAKE_WAREHOUSE', 'DEV_WH')
+        
         cursor.execute("USE DATABASE PUBLIC_HEALTH_MODERNIZATION_DEMO")
+        print(f"✅ Connected as {current_role} using {current_warehouse}")
     
-        # Get procedure files
         proc_files = [
             'sql/procs/sp_ingest_raw_data.sql',
             'sql/procs/sp_process_curated_data.sql',
@@ -129,9 +93,6 @@ def main():
                     executed_count += 1
             else:
                 print(f"⚠️ File not found: {proc_file}")
-        
-        # Grant permissions for procedures
-        grant_procedure_permissions(cursor)
         
         print(f"🎉 Stored procedures deployment completed! {executed_count}/{len(proc_files)} files executed successfully")
         

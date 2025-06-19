@@ -103,35 +103,13 @@ jobs:
             
             print('🏗️ Deploying database structure...')
             
-            setup_commands = [
-                'USE ROLE ACCOUNTADMIN',
-                'USE WAREHOUSE COMPUTE_WH',
-                'CREATE DATABASE IF NOT EXISTS PUBLIC_HEALTH_MODERNIZATION_DEMO',
-                'CREATE SCHEMA IF NOT EXISTS PUBLIC_HEALTH_MODERNIZATION_DEMO.LANDING_RAW',
-                'CREATE SCHEMA IF NOT EXISTS PUBLIC_HEALTH_MODERNIZATION_DEMO.CURATED', 
-                'CREATE SCHEMA IF NOT EXISTS PUBLIC_HEALTH_MODERNIZATION_DEMO.DATA_MART',
-                'CREATE SCHEMA IF NOT EXISTS PUBLIC_HEALTH_MODERNIZATION_DEMO.LOGGING',
-                'CREATE WAREHOUSE IF NOT EXISTS DEV_WH WITH WAREHOUSE_SIZE = \\'XSMALL\\' AUTO_SUSPEND = 60 AUTO_RESUME = TRUE',
-                'CREATE WAREHOUSE IF NOT EXISTS PROD_WH WITH WAREHOUSE_SIZE = \\'SMALL\\' AUTO_SUSPEND = 300 AUTO_RESUME = TRUE',
-                'CREATE ROLE IF NOT EXISTS DATA_ENGINEER_ROLE',
-                'CREATE ROLE IF NOT EXISTS DATA_ANALYST_ROLE',
-                'CREATE ROLE IF NOT EXISTS PUBLIC_HEALTH_ROLE',
-                'GRANT USAGE ON DATABASE PUBLIC_HEALTH_MODERNIZATION_DEMO TO ROLE DATA_ENGINEER_ROLE',
-                'GRANT ALL ON SCHEMA PUBLIC_HEALTH_MODERNIZATION_DEMO.LANDING_RAW TO ROLE DATA_ENGINEER_ROLE',
-                'GRANT ALL ON SCHEMA PUBLIC_HEALTH_MODERNIZATION_DEMO.CURATED TO ROLE DATA_ENGINEER_ROLE',
-                'GRANT ALL ON SCHEMA PUBLIC_HEALTH_MODERNIZATION_DEMO.DATA_MART TO ROLE DATA_ENGINEER_ROLE',
-                'GRANT ALL ON SCHEMA PUBLIC_HEALTH_MODERNIZATION_DEMO.LOGGING TO ROLE DATA_ENGINEER_ROLE',
-                'GRANT USAGE ON WAREHOUSE DEV_WH TO ROLE DATA_ENGINEER_ROLE',
-                'GRANT USAGE ON WAREHOUSE PROD_WH TO ROLE DATA_ENGINEER_ROLE',
-                'GRANT USAGE ON WAREHOUSE COMPUTE_WH TO ROLE DATA_ENGINEER_ROLE',
-                'GRANT ROLE DATA_ENGINEER_ROLE TO USER HATTAWAY7',
-                'GRANT ROLE DATA_ANALYST_ROLE TO USER HATTAWAY7',
-                'GRANT ROLE PUBLIC_HEALTH_ROLE TO USER HATTAWAY7',
-                'ALTER USER HATTAWAY7 SET DEFAULT_ROLE = \\'DATA_ENGINEER_ROLE\\''
-            ]
+            with open('sql/ddl/01_setup_roles_and_db.sql', 'r') as f:
+                setup_sql = f.read()
+            
+            commands = [cmd.strip() for cmd in setup_sql.split(';') if cmd.strip()]
             
             success_count = 0
-            for cmd in setup_commands:
+            for cmd in commands:
                 try:
                     cursor.execute(cmd)
                     print(f'✅ {cmd[:60]}...')
@@ -141,7 +119,7 @@ jobs:
             
             cursor.close()
             conn.close()
-            print(f'🎉 Database structure deployment complete! {success_count}/{len(setup_commands)} commands succeeded')
+            print(f'🎉 Database structure deployment complete! {success_count}/{len(commands)} commands succeeded')
             
         except Exception as e:
             print(f'❌ Database deployment failed: {e}')
@@ -152,26 +130,26 @@ jobs:
       run: |
         python scripts/deploy_ddl.py prod
       env:
-        SNOWFLAKE_ROLE: ACCOUNTADMIN
-        SNOWFLAKE_WAREHOUSE: COMPUTE_WH
+        SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_DEPLOY_ROLE }}
+        SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_DEPLOY_WAREHOUSE }}
 
     - name: Deploy Masking Policies  
       run: |
         python scripts/deploy_masking_policies.py prod
       env:
-        SNOWFLAKE_ROLE: ACCOUNTADMIN
-        SNOWFLAKE_WAREHOUSE: COMPUTE_WH
+        SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_DEPLOY_ROLE }}
+        SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_DEPLOY_WAREHOUSE }}
 
     - name: Deploy Stored Procedures
       run: |
         python scripts/deploy_procedures.py prod
       env:
-        SNOWFLAKE_ROLE: ACCOUNTADMIN
-        SNOWFLAKE_WAREHOUSE: COMPUTE_WH
+        SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_DEPLOY_ROLE }}
+        SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_DEPLOY_WAREHOUSE }}
 
     - name: Test Complete Pipeline
       run: |
         python scripts/run_tests.py bootstrap
       env:
-        SNOWFLAKE_ROLE: ACCOUNTADMIN
-        SNOWFLAKE_WAREHOUSE: COMPUTE_WH
+        SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_DEPLOY_ROLE }}
+        SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_DEPLOY_WAREHOUSE }}
