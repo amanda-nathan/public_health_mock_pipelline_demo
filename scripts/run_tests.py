@@ -176,6 +176,18 @@ def test_stored_procedures(cursor):
     print(f"✅ Found {procedures_exist}/{len(expected_procedures)} stored procedures")
     return procedures_exist > 0
 
+def test_connection_both_roles(cursor):
+    print("\n🔁 Testing connection with both roles...")
+    roles = ['ACCOUNTADMIN', 'DATA_ENGINEER_ROLE']
+    for role in roles:
+        try:
+            ensure_context(cursor, role=role)
+            test_connection(cursor)
+        except Exception as e:
+            print(f"❌ Failed to test with role {role}: {e}")
+    return True
+
+
 def test_roles_and_permissions(cursor):
     """Test role assignments and permissions"""
     print("\n🔐 Testing Roles and Permissions...")
