@@ -13,8 +13,8 @@ def connect_to_snowflake():
         user=os.environ['SNOWFLAKE_USER'],
         password=os.environ['SNOWFLAKE_PASSWORD'],
         account=os.environ['SNOWFLAKE_ACCOUNT'],
-        role=os.environ.get('SNOWFLAKE_ROLE', 'DATA_ENGINEER_ROLE'),
-        warehouse=os.environ.get('SNOWFLAKE_WAREHOUSE', 'DEV_WH'),
+        role=os.environ.get('SNOWFLAKE_ROLE', 'ACCOUNTADMIN'),
+        warehouse=os.environ.get('SNOWFLAKE_WAREHOUSE', 'COMPUTE_WH'),
         database=os.environ.get('SNOWFLAKE_DATABASE', 'PUBLIC_HEALTH_MODERNIZATION_DEMO')
     )
 

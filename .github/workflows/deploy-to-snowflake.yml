@@ -200,3 +200,11 @@ jobs:
     - name: Deploy DDL Scripts
       run: |
         python scripts/deploy_ddl.py prod
+
+    - name: Deploy Stored Procedures
+      run: |
+        python scripts/deploy_procedures.py prod
+
+    - name: Test Complete Pipeline
+      run: |
+        python scripts/run_tests.py bootstrap
