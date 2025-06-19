@@ -50,7 +50,6 @@ def main():
     # ✅ Fixed: Skip 01_setup_roles_and_db.sql since workflow handles basic setup
     ddl_files = [
         'sql/ddl/02_create_tables_and_stages.sql',
-        'sql/ddl/03_create_masking_policies.sql',
         'sql/ddl/04_create_logging.sql'
     ]
     

@@ -204,6 +204,13 @@ jobs:
         SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_DEPLOY_ROLE }}
         SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_DEPLOY_WAREHOUSE }}
 
+    - name: Deploy Masking Policies  
+      run: |
+        python scripts/deploy_masking_policies.py prod
+      env:
+        SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_DEPLOY_ROLE }}
+        SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_DEPLOY_WAREHOUSE }}
+
     - name: Deploy Stored Procedures
       run: |
         python scripts/deploy_procedures.py prod
