@@ -1,53 +1,117 @@
-USE ROLE PH_DEMO_DEVELOPER_ROLE;
-USE WAREHOUSE PH_DEMO_WH;
-USE DATABASE PUBLIC_HEALTH_MODERNIZATION_DEMO; 
+USE DATABASE PUBLIC_HEALTH_MODERNIZATION_DEMO;
+USE SCHEMA LANDING_RAW;
 
-USE SCHEMA UTILITY;
-CREATE OR REPLACE PROCEDURE sp_ingest_raw_data(SOURCE_NAME VARCHAR, STAGE_NAME VARCHAR, TABLE_NAME VARCHAR)
-RETURNS VARCHAR
+CREATE OR REPLACE PROCEDURE sp_ingest_raw_data(source_type STRING)
+RETURNS STRING
 LANGUAGE SQL
 EXECUTE AS CALLER
 AS
 $$
 DECLARE
-    log_procedure_name VARCHAR := 'SP_INGEST_RAW_DATA';
-    status VARCHAR := 'SUCCESS';
-    message VARCHAR;
-    row_count INT := 0;
-    sql_command VARCHAR;
+  row_count INTEGER;
+  error_msg STRING := '';
+  proc_start TIMESTAMP_NTZ := CURRENT_TIMESTAMP();
+  result_msg STRING := '';
 BEGIN
-    -- This dynamic SQL Stored Procedure ingests data from a specified stage into a specified raw table.
-    -- It uses EXECUTE IMMEDIATE to handle dynamic object names, making it a single, reusable
-    -- procedure for multiple data sources, directly addressing the challenge of handling 68+ sources.
-
-    sql_command := 'COPY INTO PUBLIC_HEALTH_MODERNIZATION_DEMO.LANDING.' || TABLE_NAME || ' (RAW_DATA) ' ||
-                   'FROM @PUBLIC_HEALTH_MODERNIZATION_DEMO.LANDING.' || STAGE_NAME || ' ' ||
-                   'ON_ERROR = ''CONTINUE'';';
-
-    -- Execute the dynamically constructed COPY command
-    EXECUTE IMMEDIATE :sql_command;
-
-    -- Use RESULT_SCAN and LAST_QUERY_ID() to get the number of rows loaded by the COPY command.
-    -- This is a key pattern for capturing metadata from commands executed dynamically.
-    SELECT "rows_loaded" INTO :row_count FROM TABLE(RESULT_SCAN(LAST_QUERY_ID()));
-
-    message := 'Successfully loaded ' || :row_count || ' rows from stage ' || STAGE_NAME || ' for source ' || SOURCE_NAME || '.';
-
-    -- Log success message
-    INSERT INTO UTILITY.PIPELINE_LOGS (PROCEDURE_NAME, STATUS, MESSAGE, ROW_COUNT)
-    VALUES (:log_procedure_name, :status, :message, :row_count);
-
-    RETURN 'Success: ' || message;
-
+  
+  -- Log procedure start
+  INSERT INTO logging.pipeline_execution_log 
+    (procedure_name, execution_start, execution_status, user_name, warehouse_name)
+  VALUES 
+    ('sp_ingest_raw_data', :proc_start, 'RUNNING', CURRENT_USER(), CURRENT_WAREHOUSE());
+  
+  -- Ingest based on source type
+  IF (:source_type = 'CDC_PLACES') THEN
+    
+    -- Truncate and reload CDC Places data
+    TRUNCATE TABLE raw_cdc_places_data;
+    
+    -- In a real scenario, this would use COPY INTO from stage
+    -- For demo purposes, we'll insert sample data
+    INSERT INTO raw_cdc_places_data (
+      state_abbr, county_name, measure_id, data_value, population, 
+      latitude, longitude, category, measure, unitofmeasure, 
+      data_value_type, geolocation, locationid, locationdesc, 
+      datasource, categoryid, measureid, datavaluetypeid, 
+      short_question_text, year
+    ) VALUES 
+    ('MA', 'Middlesex', 'ACCESS2', 15.2, 1628706, 42.3868, -71.2962, 
+     'Health Care Access and Quality', 'Current lack of health insurance among adults aged 18–64 years', 
+     'Percent', 'Age-adjusted prevalence', '(42.3868, -71.2962)', '25017', 
+     'Middlesex County', 'BRFSS', 'ACCESS2', 'ACCESS2', 'AgeAdjPrev', 
+     'No health insurance', 2021),
+    ('MA', 'Essex', 'ACCESS2', 18.7, 809829, 42.6348, -70.9228, 
+     'Health Care Access and Quality', 'Current lack of health insurance among adults aged 18–64 years', 
+     'Percent', 'Age-adjusted prevalence', '(42.6348, -70.9228)', '25009', 
+     'Essex County', 'BRFSS', 'ACCESS2', 'ACCESS2', 'AgeAdjPrev', 
+     'No health insurance', 2021),
+    ('MA', 'Worcester', 'CANCER', 456.2, 862618, 42.2553, -71.8973, 
+     'Cancer', 'All cancer types age-adjusted incidence rate', 'Per 100000', 
+     'Age-adjusted rate', '(42.2553, -71.8973)', '25027', 'Worcester County', 
+     'USCS', 'CANCER', 'CANCER', 'AgeAdjRate', 'Cancer incidence', 2021);
+    
+    GET DIAGNOSTICS row_count = ROW_COUNT;
+    result_msg := 'Successfully ingested ' || row_count || ' CDC Places records';
+    
+  ELSEIF (:source_type = 'ENVIRONMENTAL') THEN
+    
+    -- Truncate and reload Environmental data
+    TRUNCATE TABLE raw_environmental_health_data;
+    
+    INSERT INTO raw_environmental_health_data (
+      location_id, county, air_quality_index, pm25_concentration, 
+      lead_exposure_risk, water_quality_score, environmental_justice_score, 
+      vulnerable_population_pct, facility_name, facility_address, 
+      last_inspection_date, compliance_status, year
+    ) VALUES 
+    ('MA_25017_001', 'Middlesex', 42, 8.3, 'Low', 87, 0.65, 23.4, 
+     'Cambridge Environmental Monitor', '123 Main St, Cambridge, MA 02139', 
+     '2024-03-15', 'Compliant', 2024),
+    ('MA_25009_002', 'Essex', 48, 9.1, 'Moderate', 82, 0.72, 31.2, 
+     'Lynn Environmental Station', '456 Ocean Ave, Lynn, MA 01902', 
+     '2024-02-28', 'Non-Compliant', 2024),
+    ('MA_25027_003', 'Worcester', 51, 10.7, 'High', 75, 0.85, 38.9, 
+     'Worcester Industrial Monitor', '789 Industrial Rd, Worcester, MA 01608', 
+     '2024-01-20', 'Under Review', 2024);
+    
+    GET DIAGNOSTICS row_count = ROW_COUNT;
+    result_msg := 'Successfully ingested ' || row_count || ' Environmental records';
+    
+  ELSE
+    error_msg := 'Invalid source_type: ' || :source_type;
+    result_msg := error_msg;
+  END IF;
+  
+  -- Update execution log
+  UPDATE logging.pipeline_execution_log 
+  SET 
+    execution_end = CURRENT_TIMESTAMP(),
+    execution_status = CASE WHEN error_msg = '' THEN 'SUCCESS' ELSE 'FAILED' END,
+    rows_processed = row_count,
+    error_message = error_msg
+  WHERE procedure_name = 'sp_ingest_raw_data' 
+    AND execution_start = :proc_start;
+  
+  -- Data quality check
+  IF (:source_type = 'CDC_PLACES' AND row_count > 0) THEN
+    INSERT INTO logging.data_quality_log 
+      (table_name, quality_check_name, check_result, check_value, threshold_value, details)
+    VALUES 
+      ('raw_cdc_places_data', 'row_count_check', 'PASS', row_count, 1, 'Minimum row threshold met');
+  END IF;
+  
+  RETURN result_msg;
+  
 EXCEPTION
-    WHEN OTHER THEN
-        status := 'ERROR';
-        message := 'Failed to ingest data for ' || SOURCE_NAME || '. SQL Error: ' || SQLERRM;
-        
-        -- Log the error
-        INSERT INTO UTILITY.PIPELINE_LOGS (PROCEDURE_NAME, STATUS, MESSAGE, ROW_COUNT)
-        VALUES (:log_procedure_name, :status, :message, 0);
-
-        RETURN 'Error: ' || message;
+  WHEN OTHER THEN
+    error_msg := SQLERRM;
+    UPDATE logging.pipeline_execution_log 
+    SET 
+      execution_end = CURRENT_TIMESTAMP(),
+      execution_status = 'FAILED',
+      error_message = error_msg
+    WHERE procedure_name = 'sp_ingest_raw_data' 
+      AND execution_start = :proc_start;
+    RETURN 'ERROR: ' || error_msg;
 END;
 $$;
