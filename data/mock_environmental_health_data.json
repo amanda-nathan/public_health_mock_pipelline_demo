@@ -1,0 +1,3 @@
+{"ReportID": "A101", "LocationName": "City Park", "Pollutant": "Ozone", "Level": 0.075, "ReportedByEmail": "reporter1@healthdept.gov"}
+{"ReportID": "A102", "LocationName": "Downtown Area", "Pollutant": "PM2.5", "Level": 12.1, "ReportedByEmail": "citizen.scientist@gmail.com"}
+{"ReportID": "A103", "LocationName": "Industrial Zone", "Pollutant": "SO2", "Level": 2.5, "ReportedByEmail": "inspector.jones@healthdept.gov"}

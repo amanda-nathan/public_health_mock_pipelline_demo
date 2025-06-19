@@ -1,0 +1,4 @@
+LocationID,County,State,Measure,Value,ContactEmail
+1,Los Angeles,CA,Obesity Rate,0.22,jane.doe@example.com
+2,Cook,IL,Smoking Rate,0.15,john.smith@example.com
+3,Harris,TX,Diabetes Rate,0.12,test.user@example.com
