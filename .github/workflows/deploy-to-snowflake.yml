@@ -197,3 +197,6 @@ jobs:
             print(f'❌ Verification failed: {e}')
             raise
         "
+    - name: Deploy DDL Scripts
+      run: |
+        python scripts/deploy_ddl.py prod
