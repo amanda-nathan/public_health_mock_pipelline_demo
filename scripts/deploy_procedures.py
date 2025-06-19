@@ -19,26 +19,64 @@ def connect_to_snowflake():
     )
 
 def execute_sql_file(cursor, file_path):
-    """Execute SQL file with multiple statements"""
+    """Execute SQL file containing stored procedure"""
     print(f"📄 Deploying procedure from {file_path}")
     with open(file_path, 'r') as file:
         sql_content = file.read()
     
-    # Split the file into individual statements
-    statements = [stmt.strip() for stmt in sql_content.split(';') if stmt.strip()]
-    
-    success_count = 0
-    for i, statement in enumerate(statements):
-        try:
-            cursor.execute(statement)
-            success_count += 1
-            print(f"  ✅ Statement {i+1}/{len(statements)} executed")
-        except Exception as e:
-            print(f"  ⚠️ Statement {i+1}/{len(statements)} failed: {str(e)[:150]}")
-    
-    print(f"📄 {file_path}: {success_count}/{len(statements)} statements succeeded")
-    return success_count > 0
-
+    # Check if this is a stored procedure file
+    if 'CREATE OR REPLACE PROCEDURE' in sql_content:
+        # For stored procedures, we need to handle the $$ blocks specially
+        # Split only on semicolons that are NOT inside $$ blocks
+        
+        # Simple approach: execute setup statements first, then the procedure
+        lines = sql_content.strip().split('\n')
+        setup_statements = []
+        procedure_start = -1
+        
+        for i, line in enumerate(lines):
+            if 'CREATE OR REPLACE PROCEDURE' in line:
+                procedure_start = i
+                break
+            elif line.strip() and not line.strip().startswith('--'):
+                setup_statements.append(line.strip())
+        
+        # Execute setup statements (USE DATABASE, USE SCHEMA, etc.)
+        setup_sql = '\n'.join(setup_statements)
+        if setup_sql:
+            for stmt in setup_sql.split(';'):
+                stmt = stmt.strip()
+                if stmt:
+                    try:
+                        cursor.execute(stmt)
+                        print(f"  ✅ Setup statement executed")
+                    except Exception as e:
+                        print(f"  ⚠️ Setup failed: {str(e)[:100]}")
+        
+        # Execute the procedure as one block
+        if procedure_start >= 0:
+            procedure_sql = '\n'.join(lines[procedure_start:])
+            try:
+                cursor.execute(procedure_sql)
+                print(f"  ✅ Stored procedure deployed successfully")
+                return True
+            except Exception as e:
+                print(f"  ❌ Procedure deployment failed: {str(e)[:200]}")
+                return False
+    else:
+        # For non-procedure files, split on semicolons
+        statements = [stmt.strip() for stmt in sql_content.split(';') if stmt.strip()]
+        
+        success_count = 0
+        for i, statement in enumerate(statements):
+            try:
+                cursor.execute(statement)
+                success_count += 1
+                print(f"  ✅ Statement {i+1}/{len(statements)} executed")
+            except Exception as e:
+                print(f"  ⚠️ Statement {i+1}/{len(statements)} failed: {str(e)[:150]}")
+        
+        return success_count > 0
 def main():
     environment = sys.argv[1] if len(sys.argv) > 1 else 'dev'
     
