@@ -1,43 +1,152 @@
-USE SCHEMA UTILITY;
+USE DATABASE PUBLIC_HEALTH_MODERNIZATION_DEMO;
+USE SCHEMA DATA_MART;
+
 CREATE OR REPLACE PROCEDURE sp_build_datamart()
-RETURNS VARCHAR
+RETURNS STRING
 LANGUAGE SQL
+EXECUTE AS CALLER
 AS
 $$
 DECLARE
-    log_procedure_name VARCHAR := 'SP_BUILD_DATAMART';
-    status VARCHAR := 'SUCCESS';
-    message VARCHAR := '';
-    row_count INT := 0;
+  dashboard_row_count INTEGER;
+  risk_row_count INTEGER;
+  error_msg STRING := '';
+  proc_start TIMESTAMP_NTZ := CURRENT_TIMESTAMP();
+  result_msg STRING := '';
 BEGIN
-    -- This procedure creates an aggregated table for analysts.
-    -- It demonstrates the final transformation layer.
-    
-    TRUNCATE TABLE DATAMART.COUNTY_HEALTH_METRICS;
-
-    INSERT INTO DATAMART.COUNTY_HEALTH_METRICS (COUNTY, STATE, TOTAL_MEASURES, AVG_VALUE)
-    SELECT
-        COUNTY,
-        STATE,
-        COUNT(DISTINCT MEASURE) AS TOTAL_MEASURES,
-        AVG(VALUE) AS AVG_VALUE
-    FROM CURATED.CDC_PLACES
-    GROUP BY COUNTY, STATE;
-
-    row_count := SQLROWCOUNT;
-    message := 'Successfully built DATAMART.COUNTY_HEALTH_METRICS with ' || row_count || ' rows.';
-
-    INSERT INTO UTILITY.PIPELINE_LOGS (PROCEDURE_NAME, STATUS, MESSAGE, ROW_COUNT)
-    VALUES (:log_procedure_name, :status, :message, :row_count);
-
-    RETURN 'Success: ' || message;
-
+  
+  -- Log procedure start
+  INSERT INTO logging.pipeline_execution_log 
+    (procedure_name, execution_start, execution_status, user_name, warehouse_name)
+  VALUES 
+    ('sp_build_datamart', :proc_start, 'RUNNING', CURRENT_USER(), CURRENT_WAREHOUSE());
+  
+  -- Build public health dashboard
+  MERGE INTO public_health_dashboard AS target
+  USING (
+    WITH health_metrics AS (
+      SELECT 
+        county_name,
+        state_abbr,
+        MAX(population) as total_population,
+        MAX(CASE WHEN measure_category LIKE '%Diabetes%' THEN measure_value END) as diabetes_rate,
+        MAX(CASE WHEN measure_category LIKE '%Obesity%' THEN measure_value END) as obesity_rate,
+        MAX(CASE WHEN measure_category LIKE '%Cancer%' THEN measure_value END) as cancer_incidence_rate,
+        MAX(CASE WHEN measure_name LIKE '%insurance%' THEN measure_value END) as uninsured_rate,
+        data_year
+      FROM curated.curated_health_indicators
+      WHERE data_quality_flag = 'VALID'
+      GROUP BY county_name, state_abbr, data_year
+    ),
+    env_metrics AS (
+      SELECT 
+        county,
+        AVG(air_quality_index) as air_quality_avg,
+        AVG(environmental_justice_score) as environmental_justice_score,
+        COUNT(CASE WHEN lead_risk_level = 'High' THEN 1 END) as high_risk_facilities_count,
+        data_year
+      FROM curated.curated_environmental_data
+      WHERE data_quality_flag = 'VALID'
+      GROUP BY county, data_year
+    )
+    SELECT 
+      h.county_name,
+      h.state_abbr,
+      h.total_population,
+      h.diabetes_rate,
+      h.obesity_rate,
+      h.cancer_incidence_rate,
+      h.uninsured_rate,
+      e.air_quality_avg,
+      e.environmental_justice_score,
+      e.high_risk_facilities_count,
+      h.data_year
+    FROM health_metrics h
+    LEFT JOIN env_metrics e ON h.county_name = e.county AND h.data_year = e.data_year
+  ) AS source
+  ON target.county_name = source.county_name AND target.data_year = source.data_year
+  WHEN MATCHED THEN UPDATE SET
+    total_population = source.total_population,
+    diabetes_rate = source.diabetes_rate,
+    obesity_rate = source.obesity_rate,
+    cancer_incidence_rate = source.cancer_incidence_rate,
+    uninsured_rate = source.uninsured_rate,
+    air_quality_avg = source.air_quality_avg,
+    environmental_justice_score = source.environmental_justice_score,
+    high_risk_facilities_count = source.high_risk_facilities_count,
+    last_updated = CURRENT_TIMESTAMP()
+  WHEN NOT MATCHED THEN INSERT (
+    county_name, state_abbr, total_population, diabetes_rate, obesity_rate, 
+    cancer_incidence_rate, uninsured_rate, air_quality_avg, environmental_justice_score, 
+    high_risk_facilities_count, data_year
+  ) VALUES (
+    source.county_name, source.state_abbr, source.total_population, source.diabetes_rate, 
+    source.obesity_rate, source.cancer_incidence_rate, source.uninsured_rate, 
+    source.air_quality_avg, source.environmental_justice_score, source.high_risk_facilities_count, 
+    source.data_year
+  );
+  
+  GET DIAGNOSTICS dashboard_row_count = ROW_COUNT;
+  
+  -- Build environmental risk summary
+  MERGE INTO environmental_risk_summary AS target
+  USING (
+    SELECT 
+      county,
+      lead_risk_level as risk_level,
+      COUNT(*) as facility_count,
+      AVG(vulnerable_population_pct) as vulnerable_population_pct,
+      AVG(air_quality_index) as avg_air_quality,
+      AVG(water_quality_score) as avg_water_quality,
+      SUM(CASE WHEN compliance_status = 'Compliant' THEN 1 ELSE 0 END)::FLOAT / COUNT(*) * 100 as compliance_rate,
+      data_year
+    FROM curated.curated_environmental_data
+    WHERE data_quality_flag = 'VALID'
+    GROUP BY county, lead_risk_level, data_year
+  ) AS source
+  ON target.county_name = source.county 
+    AND target.risk_level = source.risk_level 
+    AND target.data_year = source.data_year
+  WHEN MATCHED THEN UPDATE SET
+    facility_count = source.facility_count,
+    vulnerable_population_pct = source.vulnerable_population_pct,
+    avg_air_quality = source.avg_air_quality,
+    avg_water_quality = source.avg_water_quality,
+    compliance_rate = source.compliance_rate,
+    last_updated = CURRENT_TIMESTAMP()
+  WHEN NOT MATCHED THEN INSERT (
+    county_name, risk_level, facility_count, vulnerable_population_pct, 
+    avg_air_quality, avg_water_quality, compliance_rate, data_year
+  ) VALUES (
+    source.county, source.risk_level, source.facility_count, source.vulnerable_population_pct, 
+    source.avg_air_quality, source.avg_water_quality, source.compliance_rate, source.data_year
+  );
+  
+  GET DIAGNOSTICS risk_row_count = ROW_COUNT;
+  
+  result_msg := 'Successfully built data mart: ' || dashboard_row_count || ' dashboard records, ' || risk_row_count || ' risk summary records';
+  
+  -- Update execution log
+  UPDATE logging.pipeline_execution_log 
+  SET 
+    execution_end = CURRENT_TIMESTAMP(),
+    execution_status = 'SUCCESS',
+    rows_processed = dashboard_row_count + risk_row_count
+  WHERE procedure_name = 'sp_build_datamart' 
+    AND execution_start = :proc_start;
+  
+  RETURN result_msg;
+  
 EXCEPTION
-    WHEN OTHER THEN
-        status := 'ERROR';
-        message := 'Error building data mart: ' || SQLERRM;
-        INSERT INTO UTILITY.PIPELINE_LOGS (PROCEDURE_NAME, STATUS, MESSAGE)
-        VALUES (:log_procedure_name, :status, :message);
-        RETURN 'Error: ' || message;
+  WHEN OTHER THEN
+    error_msg := SQLERRM;
+    UPDATE logging.pipeline_execution_log 
+    SET 
+      execution_end = CURRENT_TIMESTAMP(),
+      execution_status = 'FAILED',
+      error_message = error_msg
+    WHERE procedure_name = 'sp_build_datamart' 
+      AND execution_start = :proc_start;
+    RETURN 'ERROR: ' || error_msg;
 END;
 $$;
