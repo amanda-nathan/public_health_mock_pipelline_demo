@@ -147,9 +147,23 @@ jobs:
         SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_DEPLOY_ROLE }}
         SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_DEPLOY_WAREHOUSE }}
 
+    - name: Deploy Tasks
+      run: |
+        python scripts/deploy_tasks.py prod
+      env:
+        SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_DEPLOY_ROLE }}
+        SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_DEPLOY_WAREHOUSE }}
+
     - name: Test Complete Pipeline
       run: |
         python scripts/run_tests.py bootstrap
+      env:
+        SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_DEPLOY_ROLE }}
+        SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_DEPLOY_WAREHOUSE }}
+
+    - name: Explore Pipeline Results
+      run: |
+        python scripts/explore_pipeline.py
       env:
         SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_DEPLOY_ROLE }}
         SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_DEPLOY_WAREHOUSE }}
