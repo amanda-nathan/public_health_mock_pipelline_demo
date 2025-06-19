@@ -1,6 +1,6 @@
 # Public Health Modernization Mock Data Pipeline
 
-This project demonstrates an end-to-end automated data pipeline built entirely with native Snowflake features and CI/CD principles using GitHub Actions. It is intended as a mock public health data platform and highlights best practices for modern data engineering, automation, and governance in Snowflake.
+This project demonstrates an automated data pipeline built entirely with native Snowflake features and CI/CD principles using GitHub Actions. It is intended as a mock public health data platform and highlights best practices for modern data engineering, automation, and governance in Snowflake.
 
 > **Note**: This project was developed using a free Snowflake trial account to simulate a real-world environment.
 
