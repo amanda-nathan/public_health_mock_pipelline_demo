@@ -1,3 +1,46 @@
-{"ReportID": "A101", "LocationName": "City Park", "Pollutant": "Ozone", "Level": 0.075, "ReportedByEmail": "reporter1@healthdept.gov"}
-{"ReportID": "A102", "LocationName": "Downtown Area", "Pollutant": "PM2.5", "Level": 12.1, "ReportedByEmail": "citizen.scientist@gmail.com"}
-{"ReportID": "A103", "LocationName": "Industrial Zone", "Pollutant": "SO2", "Level": 2.5, "ReportedByEmail": "inspector.jones@healthdept.gov"}
+[
+  {
+    "location_id": "MA_25017_001",
+    "county": "Middlesex",
+    "air_quality_index": 42,
+    "pm25_concentration": 8.3,
+    "lead_exposure_risk": "Low",
+    "water_quality_score": 87,
+    "environmental_justice_score": 0.65,
+    "vulnerable_population_pct": 23.4,
+    "facility_name": "Cambridge Environmental Monitor",
+    "facility_address": "123 Main St, Cambridge, MA 02139",
+    "last_inspection_date": "2024-03-15",
+    "compliance_status": "Compliant",
+    "year": 2024
+  },
+  {
+    "location_id": "MA_25009_002", 
+    "county": "Essex",
+    "air_quality_index": 48,
+    "pm25_concentration": 9.1,
+    "lead_exposure_risk": "Moderate",
+    "water_quality_score": 82,
+    "environmental_justice_score": 0.72,
+    "vulnerable_population_pct": 31.2,
+    "facility_name": "Lynn Environmental Station",
+    "facility_address": "456 Ocean Ave, Lynn, MA 01902",
+    "last_inspection_date": "2024-02-28",
+    "compliance_status": "Non-Compliant",
+    "year": 2024
+  },
+  {
+    "location_id": "MA_25027_003",
+    "county": "Worcester", 
+    "air_quality_index": 51,
+    "pm25_concentration": 10.7,
+    "lead_exposure_risk": "High",
+    "water_quality_score": 75,
+    "environmental_justice_score": 0.85,
+    "vulnerable_population_pct": 38.9,
+    "facility_name": "Worcester Industrial Monitor",
+    "facility_address": "789 Industrial Rd, Worcester, MA 01608",
+    "last_inspection_date": "2024-01-20",
+    "compliance_status": "Under Review",
+    "year": 2024
+  }
