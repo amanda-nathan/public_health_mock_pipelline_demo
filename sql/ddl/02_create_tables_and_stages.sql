@@ -2,7 +2,7 @@ USE DATABASE PUBLIC_HEALTH_MODERNIZATION_DEMO;
 USE SCHEMA LANDING_RAW;
 USE WAREHOUSE DEV_WH;
 
--- Note: For Option 1 (direct data insertion), we don't need file formats or stages
+
 -- The stored procedures will insert data directly via SQL INSERT statements
 
 -- Landing/Raw layer tables
