@@ -111,24 +111,26 @@ BEGIN
   env_row_count := SQLROWCOUNT;
   
   -- Create success message
-  result_msg := 'Successfully processed ' || health_row_count || ' health indicator records and ' || env_row_count || ' environmental health records into curated layer';
+  result_msg := 'Successfully processed ' || :health_row_count || ' health indicator records and ' || :env_row_count || ' environmental health records into curated layer';
   
+  -- ✅ Fixed: Added : prefix for variable references
   -- Update execution log with success
   UPDATE logging.pipeline_execution_log 
   SET 
     execution_end = CURRENT_TIMESTAMP(),
     execution_status = 'SUCCESS',
-    rows_processed = health_row_count + env_row_count,
-    details = result_msg
+    rows_processed = :health_row_count + :env_row_count,
+    details = :result_msg
   WHERE procedure_name = 'sp_process_curated_data' 
     AND execution_start = :proc_start;
   
+  -- ✅ Fixed: Added : prefix for variable references
   -- Log data quality metrics
   INSERT INTO logging.data_quality_log 
     (table_name, quality_check_name, check_result, check_value, threshold_value, details)
   VALUES 
-    ('curated_health_indicators', 'merge_operation_count', 'PASS', health_row_count, 0, 'Health indicator records processed successfully'),
-    ('curated_environmental_data', 'merge_operation_count', 'PASS', env_row_count, 0, 'Environmental health records processed successfully');
+    ('curated_health_indicators', 'merge_operation_count', 'PASS', :health_row_count, 0, 'Health indicator records processed successfully'),
+    ('curated_environmental_data', 'merge_operation_count', 'PASS', :env_row_count, 0, 'Environmental health records processed successfully');
   
   RETURN result_msg;
   
@@ -141,7 +143,7 @@ EXCEPTION
     SET 
       execution_end = CURRENT_TIMESTAMP(),
       execution_status = 'FAILED',
-      error_message = error_msg
+      error_message = :error_msg
     WHERE procedure_name = 'sp_process_curated_data' 
       AND execution_start = :proc_start;
       
@@ -149,8 +151,8 @@ EXCEPTION
     INSERT INTO logging.data_quality_log 
       (table_name, quality_check_name, check_result, check_value, details)
     VALUES 
-      ('sp_process_curated_data', 'procedure_execution', 'FAIL', 0, 'Procedure failed: ' || error_msg);
+      ('sp_process_curated_data', 'procedure_execution', 'FAIL', 0, 'Procedure failed: ' || :error_msg);
     
-    RETURN 'ERROR: Curated data processing failed - ' || error_msg;
+    RETURN 'ERROR: Curated data processing failed - ' || :error_msg;
 END;
 $$;

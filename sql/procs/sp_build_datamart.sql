@@ -86,7 +86,7 @@ BEGIN
     source.data_year
   );
   
-  dashboard_row_count := SQLROWCOUNT;  -- ✅ Fixed: Snowflake syntax
+  dashboard_row_count := SQLROWCOUNT;
   
   -- Build environmental risk summary
   MERGE INTO environmental_risk_summary AS target
@@ -122,16 +122,18 @@ BEGIN
     source.avg_air_quality, source.avg_water_quality, source.compliance_rate, source.data_year
   );
   
-  risk_row_count := SQLROWCOUNT;  -- ✅ Fixed: Snowflake syntax
+  risk_row_count := SQLROWCOUNT;
   
-  result_msg := 'Successfully built data mart: ' || dashboard_row_count || ' dashboard records, ' || risk_row_count || ' risk summary records';
+  -- ✅ Fixed: Added : prefix for variable references
+  result_msg := 'Successfully built data mart: ' || :dashboard_row_count || ' dashboard records, ' || :risk_row_count || ' risk summary records';
   
+  -- ✅ Fixed: Added : prefix for variable references
   -- Update execution log
   UPDATE logging.pipeline_execution_log 
   SET 
     execution_end = CURRENT_TIMESTAMP(),
     execution_status = 'SUCCESS',
-    rows_processed = dashboard_row_count + risk_row_count
+    rows_processed = :dashboard_row_count + :risk_row_count
   WHERE procedure_name = 'sp_build_datamart' 
     AND execution_start = :proc_start;
   
@@ -144,9 +146,9 @@ EXCEPTION
     SET 
       execution_end = CURRENT_TIMESTAMP(),
       execution_status = 'FAILED',
-      error_message = error_msg
+      error_message = :error_msg
     WHERE procedure_name = 'sp_build_datamart' 
       AND execution_start = :proc_start;
-    RETURN 'ERROR: ' || error_msg;
+    RETURN 'ERROR: ' || :error_msg;
 END;
 $$;

@@ -44,8 +44,8 @@ BEGIN
      'Age-adjusted rate', '(42.2553, -71.8973)', '25027', 'Worcester County', 
      'USCS', 'CANCER', 'CANCER', 'AgeAdjRate', 'Cancer incidence', 2021);
     
-    row_count := SQLROWCOUNT;  -- ✅ Fixed: Snowflake syntax
-    result_msg := 'Successfully ingested ' || row_count || ' CDC Places records';
+    row_count := SQLROWCOUNT;
+    result_msg := 'Successfully ingested ' || :row_count || ' CDC Places records';
     
   ELSEIF (:source_type = 'ENVIRONMENTAL') THEN
     TRUNCATE TABLE raw_environmental_health_data;
@@ -66,28 +66,30 @@ BEGIN
      'Worcester Industrial Monitor', '789 Industrial Rd, Worcester, MA 01608', 
      '2024-01-20', 'Under Review', 2024);
     
-    row_count := SQLROWCOUNT;  -- ✅ Fixed: Snowflake syntax
-    result_msg := 'Successfully ingested ' || row_count || ' Environmental records';
+    row_count := SQLROWCOUNT;
+    result_msg := 'Successfully ingested ' || :row_count || ' Environmental records';
     
   ELSE
     error_msg := 'Invalid source_type: ' || :source_type;
-    result_msg := error_msg;
+    result_msg := :error_msg;
   END IF;
   
+  -- ✅ Fixed: Added : prefix for all variable references in SQL statements
   UPDATE logging.pipeline_execution_log 
   SET 
     execution_end = CURRENT_TIMESTAMP(),
-    execution_status = CASE WHEN error_msg = '' THEN 'SUCCESS' ELSE 'FAILED' END,
-    rows_processed = row_count,
-    error_message = error_msg
+    execution_status = CASE WHEN :error_msg = '' THEN 'SUCCESS' ELSE 'FAILED' END,
+    rows_processed = :row_count,
+    error_message = :error_msg
   WHERE procedure_name = 'sp_ingest_raw_data' 
     AND execution_start = :proc_start;
   
-  IF (:source_type = 'CDC_PLACES' AND row_count > 0) THEN
+  -- ✅ Fixed: Added : prefix for variable references
+  IF (:source_type = 'CDC_PLACES' AND :row_count > 0) THEN
     INSERT INTO logging.data_quality_log 
       (table_name, quality_check_name, check_result, check_value, threshold_value, details)
     VALUES 
-      ('raw_cdc_places_data', 'row_count_check', 'PASS', row_count, 1, 'Minimum row threshold met');
+      ('raw_cdc_places_data', 'row_count_check', 'PASS', :row_count, 1, 'Minimum row threshold met');
   END IF;
   
   RETURN result_msg;
@@ -99,9 +101,9 @@ EXCEPTION
     SET 
       execution_end = CURRENT_TIMESTAMP(),
       execution_status = 'FAILED',
-      error_message = error_msg
+      error_message = :error_msg
     WHERE procedure_name = 'sp_ingest_raw_data' 
       AND execution_start = :proc_start;
-    RETURN 'ERROR: ' || error_msg;
+    RETURN 'ERROR: ' || :error_msg;
 END;
 $$;
