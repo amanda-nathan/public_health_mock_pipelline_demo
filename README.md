@@ -1,0 +1,1 @@
+# Fixed SNOWFLAKE_ACCOUNT secret
